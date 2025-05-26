@@ -2,7 +2,6 @@ package http.server;
 
 import http.server.application.Repository;
 import http.server.error.ErrorDto;
-import http.server.parser.ParsingResult;
 import http.server.parser.RequestDto;
 import http.server.processors.ErrorProcessor;
 import http.server.processors.GetVisitsProcessor;
@@ -14,7 +13,7 @@ import java.nio.channels.SocketChannel;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RequestRouter{
+public class RequestRouter {
     private final Map<String, RequestProcessor> processors;
     private final Repository repository;
 
@@ -22,6 +21,10 @@ public class RequestRouter{
         this.repository = repository;
         processors = Map.copyOf(initProcessors(repository));
 
+        if (!processors.containsKey(ErrorProcessor.class.getSimpleName())) {
+            throw new RuntimeException("ErrorProcessor must be registered in processors");
+            //todo проверить что запишет влог при отсутствии регистрации ErrorProcessor
+        }
     }
 
     private Map<String, RequestProcessor> initProcessors(Repository repository) {
@@ -43,12 +46,12 @@ public class RequestRouter{
 
     public void execute(Context context, SocketChannel clientChannel) throws IOException {
         Either<ErrorDto, RequestDto> parsingResult = context.getParsingResult().getValue();
-        RequestProcessor processor;
+        RequestProcessor requestProcessor;
         if (parsingResult.isRight()) {
-            processor = getProcessor(parsingResult.get().getRoutingKey());
+            requestProcessor = getProcessor(parsingResult.get().getRoutingKey());
         } else {
-            processor = getErrorProcessor();
+            requestProcessor = getErrorProcessor();
         }
-        processor.execute(context, clientChannel);
+        requestProcessor.execute(context, clientChannel);
     }
 }
