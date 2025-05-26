@@ -7,6 +7,15 @@ import http.server.error.HttpErrorType;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
+/**
+ * The number of bytes read from the buffer is considered equal to InputByteBuffer.position(),
+ * since it is read only forward (such an implementation)
+ * InputByteBuffer processing does not use:
+ * - mark,
+ * - rewind,
+ * - position() with parameter less than current position plus 1,
+ * - more than once flip
+ */
 public class RequestParser {
     private static final byte CR = (byte) '\r';
     private static final byte LF = (byte) '\n';
@@ -78,6 +87,7 @@ public class RequestParser {
         StringBuilder stringBuilder = threadLocalStringBuilder.get();
         parseFirstLine(inputByteBuffer, stringBuilder, requestDto);
         parseHeaders(requestDto, inputByteBuffer, stringBuilder);
+        requestDto.setBytesReceived(inputByteBuffer.position());
         return requestDto;
     }
 
@@ -161,6 +171,7 @@ public class RequestParser {
             throw new AppException("Unsupported HTTP protocol version", HttpErrorType.BAD_REQUEST);
         }
         requestDto.setHttpVersion(httpVersion);
+
     }
 
     private static byte parsePart(ByteBuffer inputByteBuffer, Set<Byte> stopChars, StringBuilder stringBuilder) throws AppException {

@@ -174,20 +174,7 @@ public class HttpServer implements AutoCloseable {
             int bytesRead = clientChannel.read(inputByteBuffer);
             if (bytesRead > 0) {
                 context.setParsingResult(RequestParser.parseToResult(inputByteBuffer));
-                try {
-                    requestRouter.route(context, clientChannel, inputByteBuffer);
-                } catch (Exception e) {
-
-                }
-
-
-//                RequestProcessor requestProcessor = requestRouter.getProcessor(context.getParsingResultRoutingKey());
-//                requestProcessor.route(context, clientChannel);
-
-//                if (context.getParsingResult().isError()) {
-//                    closeConnection(clientChannel, key);
-//                    return;
-//                }
+                requestRouter.route(context, clientChannel, inputByteBuffer);
                 key.attach(context);
                 key.interestOps(SelectionKey.OP_WRITE);
             } else if (bytesRead == 0) {
@@ -199,7 +186,7 @@ public class HttpServer implements AutoCloseable {
                 closeConnection(clientChannel, key);
                 logger.warn("Invalid bytesRead: {}", bytesRead);
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("Read error: {}", e.getMessage(), e);
             closeConnection(clientChannel, key);
         }
@@ -230,8 +217,8 @@ public class HttpServer implements AutoCloseable {
         try {
             Context context = (Context) key.attachment();
             RequestAnswer requestAnswer = context.getRequestAnswer();
-            ByteBuffer byteBuffer = requestAnswer.getByteBuffer();
-            clientChannel.write(byteBuffer);
+            ByteBuffer outputByteBuffer = requestAnswer.getByteBuffer();
+            clientChannel.write(outputByteBuffer);
         } catch (Exception e) {
             logger.error("Write outer error: {}", e.getMessage(), e);
         } finally {

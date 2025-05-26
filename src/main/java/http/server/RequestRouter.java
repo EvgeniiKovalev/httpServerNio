@@ -39,8 +39,7 @@ public class RequestRouter {
     }
 
     private static RequestProcessor getProcessor(String routingKey) {
-        RequestProcessor result = processors.get(routingKey);
-        return result != null ? result : getErrorProcessor();
+        return processors.get(routingKey);
     }
 
     private Map<String, RequestProcessor> initProcessors(Repository repository) {
@@ -52,14 +51,29 @@ public class RequestRouter {
         return result;
     }
 
+    /**
+     * The first MAX_HTTP_HEADER_SIZE_KB of data from the client are read and parsed,
+     * the rest of the client data is read and processed at the discretion of the processor
+     * @param context
+     * @param clientChannel
+     * @param inputByteBuffer
+     * @throws Exception
+     */
     public void route(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws Exception {
         Either<ErrorDto, RequestDto> parsingResult = context.getParsingResult().getValue();
-        RequestProcessor requestProcessor;
-
+        String routingKey;
         if (parsingResult.isRight()) {
-            requestProcessor = getProcessor(parsingResult.get().getRoutingKey());
+            routingKey = parsingResult.get().getRoutingKey();
         } else {
+            routingKey = ErrorProcessor.class.getSimpleName();
+        }
+        RequestProcessor requestProcessor = getProcessor(routingKey);
+        if (requestProcessor == null) {
+            String message = "No processor found by key\"" + routingKey + "\" during routing";
+            ErrorDto errorDto = ErrorFactory.notFoundErrorDto(message);
+            context.setErrorParsingResult(errorDto);
             requestProcessor = getErrorProcessor();
+            logger.error(message);
         }
 
         try {

@@ -11,6 +11,8 @@ public class ParsingResult implements AutoCloseable {
     private Either<ErrorDto, RequestDto> value;
     private boolean isClosed;
 
+
+
     private ParsingResult(Either<ErrorDto, RequestDto> value) {
         this.value = value;
     }
@@ -51,6 +53,13 @@ public class ParsingResult implements AutoCloseable {
 
     public boolean isError() {
         return value.isLeft();
+    }
+
+    public long getBytesReceived() {
+        return value.fold(
+                error -> {return (long)0;},
+                RequestDto::getBytesReceived
+        );
     }
 
     public String getRoutingKey() {

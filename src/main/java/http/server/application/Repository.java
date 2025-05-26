@@ -67,7 +67,6 @@ public class Repository implements AutoCloseable {
                 ps.setInt(5, visitId);
                 if (ps.executeUpdate() == 0) {
                     throw new SQLException("Failed to save existing vizit, id = " + visitId);
-                    return -2;
                 }
             } catch (SQLException e) {
                 e.printStackTrace();
