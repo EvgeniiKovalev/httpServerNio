@@ -25,7 +25,15 @@ public class GetVisitsProcessor implements RequestProcessor {
 
     @Override
     public void execute(Context context, SocketChannel clientChannel) throws IOException {
-        if (context == null) throw new IOException("Context is null");
+        if (context == null || clientChannel == null) throw new IOException("Context or clientChannel is null");
+
+
+        Either<ErrorDto, RequestDto> either = context.getParsingResult().getValue();
+        ErrorDto errorDto = either.fold(
+                error -> error,
+                right -> {
+                    return ErrorFactory.internalErrorDto("Unexpected Right value");
+                });
 
         Either<ErrorDto, RequestDto> either = context.getParsingResult().getValue();
         try (RequestDto requestDto = either.fold(

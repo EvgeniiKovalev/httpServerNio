@@ -3,7 +3,6 @@ package http.server;
 import http.server.answer.RequestAnswer;
 import http.server.application.Repository;
 import http.server.parser.RequestParser;
-import http.server.processors.RequestProcessor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -175,8 +174,10 @@ public class HttpServer implements AutoCloseable {
             int bytesRead = clientChannel.read(buffer);
             if (bytesRead > 0) {
                 context.setParsingResult(RequestParser.parseToResult(buffer));
-                RequestProcessor requestProcessor = requestRouter.getProcessor(context.getParsingResultRoutingKey());
-                requestProcessor.execute(context, clientChannel);
+                requestRouter.execute(context, clientChannel);
+
+//                RequestProcessor requestProcessor = requestRouter.getProcessor(context.getParsingResultRoutingKey());
+//                requestProcessor.execute(context, clientChannel);
 
 //                if (context.getParsingResult().isError()) {
 //                    closeConnection(clientChannel, key);
