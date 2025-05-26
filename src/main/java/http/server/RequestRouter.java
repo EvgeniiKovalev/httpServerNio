@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RequestRouter {
-    private final Map<String, RequestProcessor> processors;
+    private static Map<String, RequestProcessor> processors;
     private final Repository repository;
 
     public RequestRouter(Repository repository) {
@@ -35,16 +35,16 @@ public class RequestRouter {
         return result;
     }
 
-    private RequestProcessor getErrorProcessor() {
+    private static RequestProcessor getErrorProcessor() {
         return processors.get(ErrorProcessor.class.getSimpleName());
     }
 
-    private RequestProcessor getProcessor(String routingKey) {
+    private static RequestProcessor getProcessor(String routingKey) {
         RequestProcessor result = processors.get(routingKey);
         return result != null ? result : getErrorProcessor();
     }
 
-    public void execute(Context context, SocketChannel clientChannel) throws IOException {
+    public static void execute(Context context, SocketChannel clientChannel) throws IOException {
         Either<ErrorDto, RequestDto> parsingResult = context.getParsingResult().getValue();
         RequestProcessor requestProcessor;
         if (parsingResult.isRight()) {

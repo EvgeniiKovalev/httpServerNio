@@ -1,11 +1,13 @@
 package http.server.processors;
 
 import http.server.Context;
-import http.server.application.Visit;
-import http.server.parser.RequestDto;
+import http.server.RequestRouter;
 import http.server.answer.RequestAnswer;
 import http.server.application.Repository;
-
+import http.server.application.Visit;
+import http.server.error.HttpErrorType;
+import http.server.parser.ParsingResult;
+import http.server.parser.RequestDto;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -30,8 +32,8 @@ public class GetVisitsProcessor implements RequestProcessor {
             int id = Integer.parseInt(requestDto.getParameter("id"));
             Visit visit = repository.getVisitById(id);
             if (visit == null) {
-               //как сдесмь поправить parsingResult, чтобы в нем был ErrorDto, вместо текущего RequestDto ?
-               //как здесь вызвать вызов роутера и завершить метод ?
+                context.setParsingResult(ParsingResult.error(HttpErrorType.NOT_FOUND, "Visit not found with id: " + id));
+                RequestRouter.execute(context, clientChannel);
                 return;
             }
 
@@ -42,6 +44,6 @@ public class GetVisitsProcessor implements RequestProcessor {
         requestAnswer.setByteBuffer(ByteBuffer.wrap(responce.getBytes(StandardCharsets.UTF_8)));
         context.setRequestAnswer(requestAnswer);
 //        clientChannel.write(ByteBuffer.wrap(responce.getBytes(StandardCharsets.UTF_8)));
-        }
     }
 }
+
