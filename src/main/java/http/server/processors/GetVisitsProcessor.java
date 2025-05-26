@@ -30,15 +30,17 @@ public class GetVisitsProcessor implements RequestProcessor {
             int id = Integer.parseInt(requestDto.getParameter("id"));
             Visit visit = repository.getVisitById(id);
             if (visit == null) {
-
+               //как сдесмь поправить parsingResult, чтобы в нем был ErrorDto, вместо текущего RequestDto ?
+               //как здесь вызвать вызов роутера и завершить метод ?
+                return;
             }
 
         }
 
-            String responce = "";
-            RequestAnswer requestAnswer = new RequestAnswer();
-            requestAnswer.setByteBuffer(ByteBuffer.wrap(responce.getBytes(StandardCharsets.UTF_8)));
-            context.setRequestAnswer(requestAnswer);
+        String responce = "";
+        RequestAnswer requestAnswer = new RequestAnswer();
+        requestAnswer.setByteBuffer(ByteBuffer.wrap(responce.getBytes(StandardCharsets.UTF_8)));
+        context.setRequestAnswer(requestAnswer);
 //        clientChannel.write(ByteBuffer.wrap(responce.getBytes(StandardCharsets.UTF_8)));
         }
     }
