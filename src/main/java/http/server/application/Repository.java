@@ -1,6 +1,5 @@
 package http.server.application;
 
-import http.server.error.ErrorFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -32,8 +31,8 @@ public class Repository implements AutoCloseable {
         return DriverManager.getConnection(databaseUrl, userDatabase, passwordDatabase);
     }
 
-    int saveUserTable(Visit visit, Connection connection) throws SQLException {
-        long visitId = visit.getId();
+    int saveVisitTable(Visit visit, Connection connection) throws SQLException {
+        int visitId = visit.getId();
         if (visitId == -1) {
             try (PreparedStatement ps = connection.prepareStatement(Constants.SAVE_NEW_VISIT_QUERY)) {
                 ps.setString(1, visit.getFio());
@@ -59,14 +58,14 @@ public class Repository implements AutoCloseable {
                 throw new SQLException(e);
             }
         } else {
-            try (PreparedStatement ps = connection.prepareStatement(Constants.SAVE_EXIST_USER_QUERY)) {
-                ps.setString(1, visit.getLogin());
-                ps.setString(2, visit.getPassword());
-                ps.setString(3, visit.getUsername());
-                ps.setInt(4, visitId);
+            try (PreparedStatement ps = connection.prepareStatement(Constants.SAVE_EXIST_VISIT_QUERY)) {
+                ps.setString(1, visit.getFio());
+                ps.setString(2, visit.getContact());
+                ps.setTimestamp(3, Timestamp.valueOf(visit.getStartTime()));
+                ps.setTimestamp(4, Timestamp.valueOf(visit.getEndTime()));
+                ps.setInt(5, visitId);
                 if (ps.executeUpdate() == 0) {
-                    System.out.println("Не удалось сохранить существующего пользователя в бд, id = " +
-                            visitId);
+                    throw new SQLException("Failed to save existing vizit, id = " + visitId);
                     return -2;
                 }
             } catch (SQLException e) {
@@ -77,44 +76,44 @@ public class Repository implements AutoCloseable {
         return visitId;
     }
 
-//    public void saveVisit(Vizit vizit) {
-//        try (Connection connection = getConnection()) {
-//            connection.setAutoCommit(false);
-//            int userId;
-//            try {
-//                userId = saveUserTable(user, connection);
-//            } catch (SQLException e) {
-//                e.printStackTrace();
-//                connection.rollback();
-//                throw new RuntimeException(e);
-//            }
-//
-//            try (PreparedStatement ps = connection.prepareStatement(Constants.SAVE_USER_ROLE_QUERY)) {
-//                List<Role> roles = readUserRoles(user);
-//                Iterator<Role> iteratorRole = user.getRolesIterator();
-//                while (iteratorRole.hasNext()) {
-//                    Role role = iteratorRole.next();
-//                    if (roles != null && roles.contains(role)) {
-//                        continue;
-//                    }
-//                    ps.setInt(1, userId);
-//                    ps.setInt(2, role.getId());
-//                    if (ps.executeUpdate() == 0) {
-//                        System.out.println("Не удалось сохранить роль пользователя в бд, id = " + userId);
-//                        return;
-//                    }
-//                }
-//            } catch (SQLException e) {
-//                e.printStackTrace();
-//                connection.rollback();
-//                throw new RuntimeException(e);
-//            }
-//            connection.commit();
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//            throw new RuntimeException(e);
-//        }
-//    }
+    public Visit getVisitById(int id) {
+        try (PreparedStatement ps = connection.prepareStatement(Constants.VISIT_BY_ID_QUERY)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return !rs.next() ? null : new Visit(
+                        id,
+                        rs.getString("fio"),
+                        rs.getString("contact"),
+                        rs.getTimestamp("start_time").toLocalDateTime(),
+                        rs.getTimestamp("end_time").toLocalDateTime()
+                );
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+                throw new RuntimeException(ex);
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void saveVisit(Visit visit) {
+        try (Connection connection = getConnection()) {
+            connection.setAutoCommit(false);
+            int userId;
+            try {
+                userId = saveVisitTable(visit, connection);
+            } catch (SQLException e) {
+                e.printStackTrace();
+                connection.rollback();
+                throw new RuntimeException(e);
+            }
+            connection.commit();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
 
     @Override
     public void close() throws Exception {

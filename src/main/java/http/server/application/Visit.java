@@ -1,11 +1,12 @@
 package http.server.application;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 public class Visit {
-    long id;
+    int id;
     String fio;
     String contact;
     LocalDateTime startTime;
@@ -15,11 +16,19 @@ public class Visit {
     public Visit() {
     }
 
-    public long getId() {
+    public Visit(int id, String fio, String contact, LocalDateTime startTime, LocalDateTime endTime) {
+        this.id = id;
+        this.fio = fio;
+        this.contact = contact;
+        this.startTime = startTime;
+        this.endTime = endTime;
+    }
+
+    public int getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(int id) {
         this.id = id;
     }
 

@@ -8,7 +8,7 @@ public class AppException extends RuntimeException {
         this.errorType = errorType;
     }
 
-    protected AppException(String message, HttpErrorType errorType, Throwable cause) {
+    public AppException(String message, HttpErrorType errorType, Throwable cause) {
         super(message, cause);
         this.errorType = errorType;
     }

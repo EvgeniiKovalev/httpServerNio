@@ -1,12 +1,11 @@
 package http.server.processors;
 
 import http.server.Context;
-import http.server.error.ErrorFactory;
+import http.server.application.Visit;
 import http.server.parser.RequestDto;
 import http.server.answer.RequestAnswer;
 import http.server.application.Repository;
-import http.server.error.ErrorDto;
-import io.vavr.control.Either;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -25,30 +24,16 @@ public class GetVisitsProcessor implements RequestProcessor {
 
     @Override
     public void execute(Context context, SocketChannel clientChannel) throws IOException {
-        if (context == null || clientChannel == null) throw new IOException("Context or clientChannel is null");
 
-
-        Either<ErrorDto, RequestDto> either = context.getParsingResult().getValue();
-        ErrorDto errorDto = either.fold(
-                error -> error,
-                right -> {
-                    return ErrorFactory.internalErrorDto("Unexpected Right value");
-                });
-
-        Either<ErrorDto, RequestDto> either = context.getParsingResult().getValue();
-        try (RequestDto requestDto = either.fold(
-                error -> {
-//                    throw new IllegalStateException("Unexpected Left value");
-                    ErrorFactory.internalErrorDto("Unexpected Left value");
-                },
-                request -> {
-                    return request;
-                })) {
-
-            if (requestDto.getParameter("id") != null) {
-                Long id = Long.parseLong(requestDto.getParameter("id"));
+        RequestDto requestDto = context.getParsingResult().getValue().get();
+        if (requestDto.getParameter("id") != null) {
+            int id = Integer.parseInt(requestDto.getParameter("id"));
+            Visit visit = repository.getVisitById(id);
+            if (visit == null) {
 
             }
+
+        }
 
             String responce = "";
             RequestAnswer requestAnswer = new RequestAnswer();

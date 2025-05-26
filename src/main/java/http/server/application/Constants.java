@@ -2,6 +2,16 @@ package http.server.application;
 
 public class Constants {
     public static final String SAVE_NEW_VISIT_QUERY =
-            "insert into db_spec.appointments(fio, contact, start_time, end_time) \n" +
+            "insert into db_spec.visit(fio, contact, start_time, end_time) \n" +
                     "values(?, ?, ?, ?) returning id";
+
+    public static final String SAVE_EXIST_VISIT_QUERY =
+            "update db_spec.visit \n" +
+                    "set fio = ?, contact = ?, start_time = ?, end_time = ? \n" +
+                    "where id = ?";
+
+    public static final String VISIT_BY_ID_QUERY =
+            "select fio, contact, start_time, end_time \n" +
+                    "from db_spec.visit where id = ?";
+
 }
