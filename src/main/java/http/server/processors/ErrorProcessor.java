@@ -10,7 +10,6 @@ import io.vavr.control.Either;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
@@ -19,9 +18,8 @@ public class ErrorProcessor implements RequestProcessor {
     private static final Logger logger = LogManager.getLogger(ErrorProcessor.class);
 
     @Override
-    public void execute(Context context, SocketChannel clientChannel) throws IOException {
-        if (context == null || clientChannel == null) throw new IOException("Context or clientChannel is null");
-
+    public void execute(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws Exception {
+        if (context == null || clientChannel == null) throw new Exception("Context or clientChannel is null");
         Either<ErrorDto, RequestDto> either = context.getParsingResult().getValue();
         ErrorDto errorDto = either.fold(
                 error -> error,

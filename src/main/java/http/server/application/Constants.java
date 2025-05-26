@@ -14,4 +14,8 @@ public class Constants {
             "select fio, contact, start_time, end_time \n" +
                     "from db_spec.visit where id = ?";
 
+
+    public static final String All_VISIT_QUERY =
+            "select id, fio, contact, start_time, end_time \n" +
+                    "from db_spec.visit order by id asc";
 }

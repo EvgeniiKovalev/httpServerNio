@@ -24,11 +24,11 @@ public class RequestParser {
 
     private static final ThreadLocal<StringBuilder> threadLocalStringBuilder = ThreadLocal.withInitial(() -> new StringBuilder(64));
 
-    private static byte parseParameters(RequestDto requestDto, ByteBuffer buffer, StringBuilder stringBuilder) {
+    private static byte parseParameters(RequestDto requestDto, ByteBuffer inputByteBuffer, StringBuilder stringBuilder) {
         byte foundByte = 0;
 
-        while (buffer.hasRemaining()) {
-            foundByte = parsePart(buffer, END_PARAM_NAME, stringBuilder);
+        while (inputByteBuffer.hasRemaining()) {
+            foundByte = parsePart(inputByteBuffer, END_PARAM_NAME, stringBuilder);
             if (foundByte != EQUALITY) {
                 throw new AppException("Parameter name not specified in request URI", HttpErrorType.BAD_REQUEST);
             }
@@ -36,7 +36,7 @@ public class RequestParser {
                 throw new AppException("Parameter name cannot be empty in request URI", HttpErrorType.BAD_REQUEST);
             }
             String name = stringBuilder.toString();
-            foundByte = parsePart(buffer, END_PARAM_VALUE, stringBuilder);
+            foundByte = parsePart(inputByteBuffer, END_PARAM_VALUE, stringBuilder);
             if (stringBuilder.isEmpty()) {
                 throw new AppException("Parameter value with parameter name '" + name + "' cannot be empty in request URI", HttpErrorType.BAD_REQUEST);
             }
@@ -51,46 +51,46 @@ public class RequestParser {
         return foundByte;
     }
 
-    private static void parseHeaders(RequestDto requestDto, ByteBuffer buffer, StringBuilder stringBuilder) throws AppException {
+    private static void parseHeaders(RequestDto requestDto, ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
         while (true) {
-            String headerName = parseHeaderName(buffer, stringBuilder);
+            String headerName = parseHeaderName(inputByteBuffer, stringBuilder);
             if (headerName.isEmpty()) break;
 
-            String headerValue = parseHeaderValue(buffer, stringBuilder);
+            String headerValue = parseHeaderValue(inputByteBuffer, stringBuilder);
             requestDto.addHeader(headerName, headerValue);
         }
     }
 
-    public static ParsingResult parseToResult(ByteBuffer buffer) {
+    public static ParsingResult parseToResult(ByteBuffer inputByteBuffer) {
         try {
-            return ParsingResult.success(parse(buffer));
+            return ParsingResult.success(parse(inputByteBuffer));
         } catch (AppException e) {
             return ParsingResult.error(e.getErrorType(), e.getMessage());
         }
     }
 
-    public static RequestDto parse(ByteBuffer buffer) throws AppException {
-        if (buffer == null) {
-            throw new AppException("Buffer is null", HttpErrorType.INTERNAL_ERROR);
+    public static RequestDto parse(ByteBuffer inputByteBuffer) throws AppException {
+        if (inputByteBuffer == null) {
+            throw new AppException("inputByteBuffer is null", HttpErrorType.INTERNAL_SERVER_ERROR);
         }
-        buffer.flip();
+        inputByteBuffer.flip();
         RequestDto requestDto = new RequestDto();
         StringBuilder stringBuilder = threadLocalStringBuilder.get();
-        parseFirstLine(buffer, stringBuilder, requestDto);
-        parseHeaders(requestDto, buffer, stringBuilder);
+        parseFirstLine(inputByteBuffer, stringBuilder, requestDto);
+        parseHeaders(requestDto, inputByteBuffer, stringBuilder);
         return requestDto;
     }
 
-    private static String parseHeaderName(ByteBuffer buffer, StringBuilder stringBuilder) throws AppException {
+    private static String parseHeaderName(ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
         stringBuilder.setLength(0);
-        while (buffer.hasRemaining()) {
-            byte readByte = buffer.get();
+        while (inputByteBuffer.hasRemaining()) {
+            byte readByte = inputByteBuffer.get();
             if (readByte == COLON) {
-                skip(buffer, 1);
+                skip(inputByteBuffer, 1);
                 break;
             }
             if (readByte == CR) {
-                skipUntil(buffer, LF);
+                skipUntil(inputByteBuffer, LF);
                 return "";
             }
             stringBuilder.append((char) readByte);
@@ -98,12 +98,12 @@ public class RequestParser {
         return stringBuilder.toString().trim();
     }
 
-    private static String parseHeaderValue(ByteBuffer buffer, StringBuilder stringBuilder) throws AppException {
+    private static String parseHeaderValue(ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
         stringBuilder.setLength(0);
-        while (buffer.hasRemaining()) {
-            byte readByte = buffer.get();
+        while (inputByteBuffer.hasRemaining()) {
+            byte readByte = inputByteBuffer.get();
             if (readByte == CR) {
-                skipUntil(buffer, LF);
+                skipUntil(inputByteBuffer, LF);
                 break;
             }
             stringBuilder.append((char) readByte);
@@ -111,20 +111,20 @@ public class RequestParser {
         return stringBuilder.toString().trim();
     }
 
-    private static void skip(ByteBuffer buffer, int n) {
-        buffer.position(buffer.position() + n);
+    private static void skip(ByteBuffer inputByteBuffer, int n) {
+        inputByteBuffer.position(inputByteBuffer.position() + n);
     }
 
-    private static void skipUntil(ByteBuffer buffer, byte stopByte) throws AppException {
-        while (buffer.hasRemaining()) {
-            if (buffer.get() == stopByte) return;
+    private static void skipUntil(ByteBuffer inputByteBuffer, byte stopByte) throws AppException {
+        while (inputByteBuffer.hasRemaining()) {
+            if (inputByteBuffer.get() == stopByte) return;
         }
         throw new AppException("Expected character with code '" + stopByte + "' not found", HttpErrorType.BAD_REQUEST);
     }
 
-    private static void parseFirstLine(ByteBuffer buffer, StringBuilder stringBuilder, RequestDto requestDto) throws AppException {
+    private static void parseFirstLine(ByteBuffer inputByteBuffer, StringBuilder stringBuilder, RequestDto requestDto) throws AppException {
         // http method
-        byte foundByte = parsePart(buffer, END_LINE_WITH_SPACE, stringBuilder);
+        byte foundByte = parsePart(inputByteBuffer, END_LINE_WITH_SPACE, stringBuilder);
         try {
             requestDto.setMethod(HttpMethod.valueOf(stringBuilder.toString()));
         } catch (IllegalArgumentException e) {
@@ -134,7 +134,7 @@ public class RequestParser {
             throw new AppException("HTTP request is invalid", HttpErrorType.BAD_REQUEST);
         }
         // uri
-        foundByte = parsePart(buffer, SET_FOR_URI, stringBuilder);
+        foundByte = parsePart(inputByteBuffer, SET_FOR_URI, stringBuilder);
         if (END_LINE_WITH_ZERO.contains(foundByte)) {
             throw new AppException("HTTP version not specified", HttpErrorType.BAD_REQUEST);
         }
@@ -145,13 +145,13 @@ public class RequestParser {
         requestDto.setUri(stringBuilder.toString());
         // parameters
         if (foundByte == QUESTION) {
-            foundByte = parseParameters(requestDto, buffer, stringBuilder);
+            foundByte = parseParameters(requestDto, inputByteBuffer, stringBuilder);
             if (END_LINE_WITH_ZERO.contains(foundByte)) {
                 throw new AppException("HTTP version not specified", HttpErrorType.BAD_REQUEST);
             }
         }
         // http version
-        foundByte = parsePart(buffer, END_LINE, stringBuilder);
+        foundByte = parsePart(inputByteBuffer, END_LINE, stringBuilder);
         System.out.println("foundByte = " + foundByte);
         if (stringBuilder.isEmpty()) {
             throw new AppException("HTTP request cannot be empty", HttpErrorType.BAD_REQUEST);
@@ -163,14 +163,14 @@ public class RequestParser {
         requestDto.setHttpVersion(httpVersion);
     }
 
-    private static byte parsePart(ByteBuffer buffer, Set<Byte> stopChars, StringBuilder stringBuilder) throws AppException {
+    private static byte parsePart(ByteBuffer inputByteBuffer, Set<Byte> stopChars, StringBuilder stringBuilder) throws AppException {
         stringBuilder.setLength(0);
-        while (buffer.hasRemaining()) {
-            byte code_character = buffer.get();
+        while (inputByteBuffer.hasRemaining()) {
+            byte code_character = inputByteBuffer.get();
             if (stopChars.contains(code_character)) {
                 switch (code_character) {
                     case CR:
-                        if (buffer.hasRemaining() && buffer.get() != LF)
+                        if (inputByteBuffer.hasRemaining() && inputByteBuffer.get() != LF)
                             throw new AppException("Carriage return character not at end of line", HttpErrorType.BAD_REQUEST);
                         break;
                     case LF:

@@ -3,11 +3,11 @@ package http.server.error;
 public enum HttpErrorType {
     BAD_REQUEST(400, "BAD_REQUEST") {
         @Override
-        public String resolveCode(String subCode) {
-            return "BR_" + subCode;
+        public String customErrorCode(String errorCode) {
+            return errorCode;
         }
     },
-    INTERNAL_ERROR(500, "INTERNAL_ERROR"),
+    INTERNAL_SERVER_ERROR(500, "INTERNAL_SERVER_ERROR"),
     NOT_FOUND(404, "NOT_FOUND");
 
     private final int statusCode;
@@ -18,7 +18,7 @@ public enum HttpErrorType {
         this.errorCode = errorCode;
     }
 
-    public String resolveCode(String subCode) {
+    public String customErrorCode(String errorCode) {
         return getErrorCode();
     }
 

@@ -1,7 +1,10 @@
 package http.server;
 
 import http.server.answer.RequestAnswer;
+import http.server.error.ErrorDto;
+import http.server.error.HttpErrorType;
 import http.server.parser.ParsingResult;
+import io.vavr.control.Either;
 
 public class Context implements AutoCloseable {
     private ParsingResult parsingResult;
@@ -9,6 +12,16 @@ public class Context implements AutoCloseable {
     private boolean isClosed;
 
     public Context() {
+    }
+
+//    public Context ErrorContext(HttpErrorType httpErrorType, String errorMessage) {
+//        Context result = new Context();
+//        result.parsingResult = ParsingResult.error(httpErrorType, errorMessage);
+//        return result;
+//    }
+
+    public void setErrorParsingResult(ErrorDto errorDto) {
+        parsingResult.setValue(Either.left(errorDto));
     }
 
     public ParsingResult getParsingResult() {
@@ -22,6 +35,8 @@ public class Context implements AutoCloseable {
     public RequestAnswer getRequestAnswer() {
         return requestAnswer;
     }
+
+
 
     public String getParsingResultRoutingKey() {
         return parsingResult.getRoutingKey();

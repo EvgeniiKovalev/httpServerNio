@@ -13,8 +13,8 @@ public final class ErrorFactory {
         return AppException.create(message, HttpErrorType.BAD_REQUEST);
     }
 
-    public static AppException internalError(String message) {
-        return AppException.create(message, HttpErrorType.INTERNAL_ERROR);
+    public static AppException internalServerError(String message) {
+        return AppException.create(message, HttpErrorType.INTERNAL_SERVER_ERROR);
 
     }
 
@@ -27,7 +27,7 @@ public final class ErrorFactory {
     }
 
     public static ErrorDto internalErrorDto(String description) {
-        return new ErrorDto(HttpErrorType.INTERNAL_ERROR, description);
+        return new ErrorDto(HttpErrorType.INTERNAL_SERVER_ERROR, description);
     }
 
     public static ErrorDto notFoundErrorDto(String description) {
@@ -39,7 +39,7 @@ public final class ErrorFactory {
     }
 
     public static AppExceptionWithDto internalErrorWithDto(String message, String description) {
-        return new AppExceptionWithDto(message, HttpErrorType.INTERNAL_ERROR, internalErrorDto(description));
+        return new AppExceptionWithDto(message, HttpErrorType.INTERNAL_SERVER_ERROR, internalErrorDto(description));
     }
 
     public static AppExceptionWithDto notFoundErrorWithDto(String message, String description) {

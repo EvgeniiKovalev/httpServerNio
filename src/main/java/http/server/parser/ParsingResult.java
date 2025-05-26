@@ -8,7 +8,7 @@ import io.vavr.control.Either;
 import java.io.IOException;
 
 public class ParsingResult implements AutoCloseable {
-    private final Either<ErrorDto, RequestDto> value;
+    private Either<ErrorDto, RequestDto> value;
     private boolean isClosed;
 
     private ParsingResult(Either<ErrorDto, RequestDto> value) {
@@ -34,11 +34,15 @@ public class ParsingResult implements AutoCloseable {
     }
 
     public static ParsingResult internalError(String description) {
-        return error(HttpErrorType.INTERNAL_ERROR, description);
+        return error(HttpErrorType.INTERNAL_SERVER_ERROR, description);
     }
 
     public Either<ErrorDto, RequestDto> getValue() {
         return value;
+    }
+
+    public void setValue(Either<ErrorDto, RequestDto> value) {
+        this.value = value;
     }
 
     public boolean isSuccess() {

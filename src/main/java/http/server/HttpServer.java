@@ -168,16 +168,21 @@ public class HttpServer implements AutoCloseable {
         logger.debug("read");
         if (key == null || !key.isValid()) return;
         SocketChannel clientChannel = (SocketChannel) key.channel();
-        ByteBuffer buffer = ByteBuffer.allocate(MAX_HTTP_HEADER_SIZE_KB * 1024);
+        ByteBuffer inputByteBuffer = ByteBuffer.allocate(MAX_HTTP_HEADER_SIZE_KB * 1024);
         Context context = new Context();
         try {
-            int bytesRead = clientChannel.read(buffer);
+            int bytesRead = clientChannel.read(inputByteBuffer);
             if (bytesRead > 0) {
-                context.setParsingResult(RequestParser.parseToResult(buffer));
-                requestRouter.execute(context, clientChannel);
+                context.setParsingResult(RequestParser.parseToResult(inputByteBuffer));
+                try {
+                    requestRouter.route(context, clientChannel, inputByteBuffer);
+                } catch (Exception e) {
+
+                }
+
 
 //                RequestProcessor requestProcessor = requestRouter.getProcessor(context.getParsingResultRoutingKey());
-//                requestProcessor.execute(context, clientChannel);
+//                requestProcessor.route(context, clientChannel);
 
 //                if (context.getParsingResult().isError()) {
 //                    closeConnection(clientChannel, key);

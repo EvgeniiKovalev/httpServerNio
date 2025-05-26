@@ -4,7 +4,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.sql.*;
-import java.util.Iterator;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 public class Repository implements AutoCloseable {
@@ -76,7 +77,7 @@ public class Repository implements AutoCloseable {
         return visitId;
     }
 
-    public Visit getVisitById(int id) {
+    public Visit getVisitById(int id) throws SQLException{
         try (PreparedStatement ps = connection.prepareStatement(Constants.VISIT_BY_ID_QUERY)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
@@ -100,9 +101,8 @@ public class Repository implements AutoCloseable {
     public void saveVisit(Visit visit) {
         try (Connection connection = getConnection()) {
             connection.setAutoCommit(false);
-            int userId;
             try {
-                userId = saveVisitTable(visit, connection);
+                int Id = saveVisitTable(visit, connection);
             } catch (SQLException e) {
                 e.printStackTrace();
                 connection.rollback();
@@ -111,6 +111,25 @@ public class Repository implements AutoCloseable {
             connection.commit();
         } catch (SQLException e) {
             e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<Visit> getAllVisits() {
+        try (PreparedStatement ps = connection.prepareStatement(Constants.All_VISIT_QUERY)) {
+            List<Visit> result = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int id = rs.getInt("id");
+                    String fio = rs.getString("fio");
+                    String contact = rs.getString("contact");
+                    LocalDateTime startTime = rs.getTimestamp("start_time").toLocalDateTime();
+                    LocalDateTime endTime = rs.getTimestamp("end_time").toLocalDateTime();
+                    result.add(new Visit(id, fio, contact, startTime, endTime));
+                }
+            }
+            return result;
+        } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
