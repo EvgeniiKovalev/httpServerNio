@@ -14,7 +14,7 @@ import java.nio.channels.SocketChannel;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RequestRouter implements RequestProcessor{
+public class RequestRouter{
     private final Map<String, RequestProcessor> processors;
     private final Repository repository;
 
@@ -41,9 +41,7 @@ public class RequestRouter implements RequestProcessor{
         return result != null ? result : getErrorProcessor();
     }
 
-    @Override
     public void execute(Context context, SocketChannel clientChannel) throws IOException {
-
         Either<ErrorDto, RequestDto> parsingResult = context.getParsingResult().getValue();
         RequestProcessor processor;
         if (parsingResult.isRight()) {
