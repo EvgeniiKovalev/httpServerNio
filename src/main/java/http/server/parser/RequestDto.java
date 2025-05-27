@@ -38,12 +38,12 @@ public final class RequestDto implements AutoCloseable {
         return bytesParsed;
     }
 
-    public void incBytesParsed(int bytesParsed) {
-         this.bytesParsed += bytesParsed;
-    }
-
     public void setBytesParsed(int bytesParsed) {
         this.bytesParsed = bytesParsed;
+    }
+
+    public void incBytesParsed(int bytesParsed) {
+        this.bytesParsed += bytesParsed;
     }
 
     public String getRoutingKey() {

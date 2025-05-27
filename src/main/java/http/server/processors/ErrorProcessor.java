@@ -1,7 +1,8 @@
 package http.server.processors;
 
 import http.server.Context;
-import http.server.answer.RequestAnswer;
+import http.server.RequestAnswer;
+import http.server.error.AppException;
 import http.server.error.ErrorDto;
 import http.server.error.ErrorFactory;
 import http.server.error.HttpErrorType;
@@ -18,14 +19,12 @@ public class ErrorProcessor implements RequestProcessor {
     private static final Logger logger = LogManager.getLogger(ErrorProcessor.class);
 
     @Override
-    public void execute(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws Exception {
-        if (context == null || clientChannel == null) throw new Exception("Context or clientChannel is null");
+    public void execute(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws AppException {
+        logger.trace("ErrorProcessor start");
         Either<ErrorDto, RequestDto> either = context.getParsingResult().getValue();
         ErrorDto errorDto = either.fold(
                 error -> error,
-                right -> {
-                    return ErrorFactory.internalErrorDto("Unexpected Right value");
-                });
+                right -> ErrorFactory.internalErrorDto("Unexpected Right value"));
 
         HttpErrorType httpErrorType = errorDto.getErrorType();
         String errorDescription = errorDto.getDescription();

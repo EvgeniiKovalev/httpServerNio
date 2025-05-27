@@ -1,6 +1,5 @@
 package http.server;
 
-import http.server.answer.RequestAnswer;
 import http.server.error.ErrorDto;
 import http.server.parser.ParsingResult;
 import io.vavr.control.Either;
@@ -22,6 +21,10 @@ public class Context implements AutoCloseable {
         return inputBuffer;
     }
 
+    public void setInputBuffer(ByteBuffer inputBuffer) {
+        this.inputBuffer = inputBuffer;
+    }
+
     public int getLengthInputBuffer() {
         return lengthInputBuffer;
     }
@@ -29,16 +32,6 @@ public class Context implements AutoCloseable {
     public void setLengthInputBuffer(int lengthInputBuffer) {
         this.lengthInputBuffer = lengthInputBuffer;
     }
-
-    public void setInputBuffer(ByteBuffer inputBuffer) {
-        this.inputBuffer = inputBuffer;
-    }
-
-//    public Context ErrorContext(HttpErrorType httpErrorType, String errorMessage) {
-//        Context result = new Context();
-//        result.parsingResult = ParsingResult.error(httpErrorType, errorMessage);
-//        return result;
-//    }
 
     public void setErrorParsingResult(ErrorDto errorDto) {
         parsingResult.setValue(Either.left(errorDto));
@@ -56,14 +49,12 @@ public class Context implements AutoCloseable {
         return requestAnswer;
     }
 
-
+    public void setRequestAnswer(RequestAnswer requestAnswer) {
+        this.requestAnswer = requestAnswer;
+    }
 
     public String getRoutingKey() {
         return parsingResult.getRoutingKey();
-    }
-
-    public void setRequestAnswer(RequestAnswer requestAnswer) {
-        this.requestAnswer = requestAnswer;
     }
 
     @Override

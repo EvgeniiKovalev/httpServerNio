@@ -12,7 +12,6 @@ public class ParsingResult implements AutoCloseable {
     private boolean isClosed;
 
 
-
     private ParsingResult(Either<ErrorDto, RequestDto> value) {
         this.value = value;
     }
@@ -57,7 +56,9 @@ public class ParsingResult implements AutoCloseable {
 
     public int getBytesParsed() {
         return value.fold(
-                error -> {return 0;},
+                error -> {
+                    return 0;
+                },
                 RequestDto::getBytesParsed
         );
     }

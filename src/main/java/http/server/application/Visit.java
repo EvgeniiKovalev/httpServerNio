@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
-public class Visit  {
+public class Visit {
     @Expose()
     private int id;
     @Expose()
@@ -18,7 +18,7 @@ public class Visit  {
     @Expose()
     private LocalDateTime endTime;
     @Expose(serialize = false)
-    private DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
 
     public Visit() {
     }

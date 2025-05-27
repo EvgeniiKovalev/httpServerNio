@@ -1,7 +1,7 @@
 package http.server.parser;
 
-import http.server.error.AppException;
 import http.server.HttpMethod;
+import http.server.error.AppException;
 import http.server.error.HttpErrorType;
 
 import java.nio.ByteBuffer;

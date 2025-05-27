@@ -18,17 +18,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RequestRouter {
-    private static final Logger logger = LogManager.getLogger(HttpServer.class);
+    private static final Logger logger = LogManager.getLogger(RequestRouter.class);
     private static Map<String, RequestProcessor> processors;
-    private final Repository repository;
 
     public RequestRouter(Repository repository) {
-        this.repository = repository;
         processors = Map.copyOf(initProcessors(repository));
 
         if (!processors.containsKey(ErrorProcessor.class.getSimpleName())) {
             throw new RuntimeException("ErrorProcessor must be registered in processors");
-            //todo проверить что запишет влог при отсутствии регистрации ErrorProcessor
+            //todo проверить что запишет в лог при отсутствии регистрации ErrorProcessor
         }
     }
 
@@ -52,6 +50,7 @@ public class RequestRouter {
     /**
      * The first MAX_HTTP_HEADER_SIZE_KB of data from the client are read and parsed,
      * the rest of the client data is read and processed at the discretion of the processor
+     *
      * @param context
      * @param clientChannel
      * @param inputByteBuffer

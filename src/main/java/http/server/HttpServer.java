@@ -1,6 +1,5 @@
 package http.server;
 
-import http.server.answer.RequestAnswer;
 import http.server.application.Repository;
 import http.server.parser.RequestParser;
 import org.apache.logging.log4j.LogManager;
@@ -30,7 +29,7 @@ public class HttpServer implements AutoCloseable {
     private final int PORT;
     private final String HOST;
     private final int MAX_CONNECTIONS;
-//    private final Map<SocketChannel, Integer> emptyReadCounters = new WeakHashMap<>(); //ConcurrentHashMap
+    //    private final Map<SocketChannel, Integer> emptyReadCounters = new WeakHashMap<>(); //ConcurrentHashMap
     private final ServerConfig serverConfig;
     private ServerSocketChannel serverChannel;
     private Selector selector;
@@ -157,8 +156,6 @@ public class HttpServer implements AutoCloseable {
 //        emptyReadCounters.put(clientChannel, count);
 //        logger.debug("Empty read #{} from {}", count, clientChannel.socket().getRemoteSocketAddress());
 //    }
-
-
     private void read(SelectionKey key) {
         logger.trace("read");
         if (key == null || !key.isValid()) return;
