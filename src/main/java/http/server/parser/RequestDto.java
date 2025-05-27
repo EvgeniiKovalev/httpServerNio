@@ -16,7 +16,7 @@ public final class RequestDto implements AutoCloseable {
     private boolean isLargeFile; // Нужна ли потоковая передача?
     private Map<String, String> headers = new HashMap<>();
     private boolean isClosed;
-    private long bytesReceived;
+    private int bytesParsed;
 
     public RequestDto() {
     }
@@ -31,16 +31,16 @@ public final class RequestDto implements AutoCloseable {
         this.headers = headers;
     }
 
-    public long getBytesReceived() {
-        return bytesReceived;
+    public int getBytesParsed() {
+        return bytesParsed;
     }
 
-    public void incBytesReceived(int bytesReceived) {
-         this.bytesReceived += bytesReceived;
+    public void incBytesParsed(int bytesParsed) {
+         this.bytesParsed += bytesParsed;
     }
 
-    public void setBytesReceived(long bytesReceived) {
-        this.bytesReceived = bytesReceived;
+    public void setBytesParsed(int bytesParsed) {
+        this.bytesParsed = bytesParsed;
     }
 
     public String getRoutingKey() {

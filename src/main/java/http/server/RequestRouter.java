@@ -60,13 +60,7 @@ public class RequestRouter {
      * @throws Exception
      */
     public void route(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws Exception {
-        Either<ErrorDto, RequestDto> parsingResult = context.getParsingResult().getValue();
-        String routingKey;
-        if (parsingResult.isRight()) {
-            routingKey = parsingResult.get().getRoutingKey();
-        } else {
-            routingKey = ErrorProcessor.class.getSimpleName();
-        }
+        String routingKey = context.getRoutingKey();
         RequestProcessor requestProcessor = getProcessor(routingKey);
         if (requestProcessor == null) {
             String message = "No processor found by key\"" + routingKey + "\" during routing";

@@ -1,5 +1,7 @@
 package http.server.error;
 
+import http.server.processors.ErrorProcessor;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 
@@ -16,7 +18,7 @@ public class ErrorDto implements AutoCloseable {
     }
 
     public String getRoutingKey() {
-        return "ErrorRoutingKey";
+        return ErrorProcessor.class.getSimpleName();
     }
 
     public HttpErrorType getErrorType() {

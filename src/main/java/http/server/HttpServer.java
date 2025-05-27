@@ -15,8 +15,6 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
-import java.util.Map;
-import java.util.WeakHashMap;
 
 public class HttpServer implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(HttpServer.class);
@@ -32,9 +30,8 @@ public class HttpServer implements AutoCloseable {
     private final int PORT;
     private final String HOST;
     private final int MAX_CONNECTIONS;
-    private final Map<SocketChannel, Integer> emptyReadCounters = new WeakHashMap<>(); //ConcurrentHashMap
+//    private final Map<SocketChannel, Integer> emptyReadCounters = new WeakHashMap<>(); //ConcurrentHashMap
     private final ServerConfig serverConfig;
-//    private final Repository repository;
     private ServerSocketChannel serverChannel;
     private Selector selector;
     private volatile boolean isRunning;
@@ -82,13 +79,12 @@ public class HttpServer implements AutoCloseable {
         logger.debug("run");
         initialize();
         while (isRunning && serverChannel.isOpen()) {
-            int selected = selector.select(); // blocking
-            if (selected == 0) {
+            int readyChannels = selector.selectNow(); // blocking
+            if (readyChannels == 0) {
                 continue;
             }
-            logger.info("selected: {} key(s)", selected);
+            logger.debug("readyChannels: {} key(s)", readyChannels);
             Iterator<SelectionKey> keysIterator = selector.selectedKeys().iterator();
-            // нужно ли удалять из итератора ключ до его обработки, или оставить как есть - после обработки ?
             while (keysIterator.hasNext()) {
                 SelectionKey key = keysIterator.next();
                 if (key.isAcceptable()) {
@@ -119,7 +115,7 @@ public class HttpServer implements AutoCloseable {
                 return;
             }
             if (clientChannel == null) return;
-            clientChannel.configureBlocking(false);
+            clientChannel.configureBlocking(true);
             clientChannel.register(selector, SelectionKey.OP_READ);
             logger.debug("New clientChannel connected: {}", clientChannel.getRemoteAddress());
         } catch (IOException e) {
@@ -134,7 +130,7 @@ public class HttpServer implements AutoCloseable {
         } catch (IOException e) {
             logger.error("error closing connection: {}", e.getMessage(), e);
         } finally {
-            emptyReadCounters.remove(clientChannel);
+//            emptyReadCounters.remove(clientChannel);
             if (key != null && key.isValid()) {
                 try {
                     Object attachment = key.attachment();
@@ -153,32 +149,37 @@ public class HttpServer implements AutoCloseable {
     /**
      * processing a connection in which the clientChannel does not send data
      */
-    private void handleEmptyRead(SocketChannel clientChannel, SelectionKey key) {
-        int count = emptyReadCounters.getOrDefault(clientChannel, 0) + 1;
-        if (count > MAX_EMPTY_READ) {
-            logger.warn("Closing idle connection: {}", clientChannel);
-            closeConnection(clientChannel, key);
-            return;
-        }
-        emptyReadCounters.put(clientChannel, count);
-        logger.debug("Empty read #{} from {}", count, clientChannel.socket().getRemoteSocketAddress());
-    }
+//    private void handleEmptyRead(SocketChannel clientChannel, SelectionKey key) {
+//        int count = emptyReadCounters.getOrDefault(clientChannel, 0) + 1;
+//        if (count > MAX_EMPTY_READ) {
+//            logger.warn("Closing idle connection: {}", clientChannel);
+//            closeConnection(clientChannel, key);
+//            return;
+//        }
+//        emptyReadCounters.put(clientChannel, count);
+//        logger.debug("Empty read #{} from {}", count, clientChannel.socket().getRemoteSocketAddress());
+//    }
+
 
     private void read(SelectionKey key) {
         logger.debug("read");
         if (key == null || !key.isValid()) return;
         SocketChannel clientChannel = (SocketChannel) key.channel();
-        ByteBuffer inputByteBuffer = ByteBuffer.allocate(MAX_HTTP_HEADER_SIZE_KB * 1024);
-        Context context = new Context();
         try {
+            ByteBuffer inputByteBuffer = ByteBuffer.allocate(MAX_HTTP_HEADER_SIZE_KB * 1024);
+
             int bytesRead = clientChannel.read(inputByteBuffer);
             if (bytesRead > 0) {
+                Context context = new Context();
+                context.setInputBuffer(inputByteBuffer);
+                context.setLengthInputBuffer(bytesRead);
                 context.setParsingResult(RequestParser.parseToResult(inputByteBuffer));
                 requestRouter.route(context, clientChannel, inputByteBuffer);
                 key.attach(context);
                 key.interestOps(SelectionKey.OP_WRITE);
-            } else if (bytesRead == 0) {
-                handleEmptyRead(clientChannel, key);
+
+//            } else if (bytesRead == 0) {
+//                handleEmptyRead(clientChannel, key);
             } else if (bytesRead == -1) {
                 closeConnection(clientChannel, key);
                 logger.warn("Connection closed by clientChannel");

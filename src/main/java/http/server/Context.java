@@ -2,16 +2,35 @@ package http.server;
 
 import http.server.answer.RequestAnswer;
 import http.server.error.ErrorDto;
-import http.server.error.HttpErrorType;
 import http.server.parser.ParsingResult;
 import io.vavr.control.Either;
+
+import java.nio.ByteBuffer;
 
 public class Context implements AutoCloseable {
     private ParsingResult parsingResult;
     private RequestAnswer requestAnswer;
     private boolean isClosed;
+    private ByteBuffer inputBuffer;
+    private int lengthInputBuffer;
 
     public Context() {
+    }
+
+    public ByteBuffer getInputBuffer() {
+        return inputBuffer;
+    }
+
+    public int getLengthInputBuffer() {
+        return lengthInputBuffer;
+    }
+
+    public void setLengthInputBuffer(int lengthInputBuffer) {
+        this.lengthInputBuffer = lengthInputBuffer;
+    }
+
+    public void setInputBuffer(ByteBuffer inputBuffer) {
+        this.inputBuffer = inputBuffer;
     }
 
 //    public Context ErrorContext(HttpErrorType httpErrorType, String errorMessage) {
@@ -38,7 +57,7 @@ public class Context implements AutoCloseable {
 
 
 
-    public String getParsingResultRoutingKey() {
+    public String getRoutingKey() {
         return parsingResult.getRoutingKey();
     }
 
@@ -62,6 +81,7 @@ public class Context implements AutoCloseable {
         } finally {
             parsingResult = null;
             requestAnswer = null;
+            inputBuffer = null;
             isClosed = true;
         }
     }

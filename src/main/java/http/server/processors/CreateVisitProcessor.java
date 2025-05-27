@@ -20,7 +20,7 @@ public class CreateVisitProcessor implements RequestProcessor {
     @Override
     public void execute(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws Exception {
         RequestDto requestDto = context.getParsingResult().getValue().get();
-//        if (requestDto.getBytesReceived() < )
+//        if (requestDto.getBytesParsed() < )
 
         if (inputByteBuffer.position() < inputByteBuffer.limit()) {
 

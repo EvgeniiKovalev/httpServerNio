@@ -87,7 +87,8 @@ public class RequestParser {
         StringBuilder stringBuilder = threadLocalStringBuilder.get();
         parseFirstLine(inputByteBuffer, stringBuilder, requestDto);
         parseHeaders(requestDto, inputByteBuffer, stringBuilder);
-        requestDto.setBytesReceived(inputByteBuffer.position());
+        requestDto.setBytesParsed(inputByteBuffer.position());
+        inputByteBuffer.mark();
         return requestDto;
     }
 
