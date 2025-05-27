@@ -5,12 +5,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 public class Visit {
-    int id;
-    String fio;
-    String contact;
-    LocalDateTime startTime;
-    LocalDateTime endTime;
-    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+    private int id;
+    private String fio;
+    private String contact;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
 
     public Visit() {
     }
@@ -78,6 +77,7 @@ public class Visit {
 
     @Override
     public String toString() {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
         return String.format("Visit{ id = %d, fio = '%s', contact = '%s', startTime = %s, endTime = %s }"
                 , id, fio, contact, startTime.format(formatter), endTime.format(formatter));
     }

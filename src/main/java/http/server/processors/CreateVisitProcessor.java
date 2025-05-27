@@ -1,7 +1,9 @@
 package http.server.processors;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import http.server.Context;
+import http.server.application.LocalDateTimeAdapter;
 import http.server.application.Repository;
 import http.server.application.Visit;
 import http.server.parser.RequestDto;
@@ -13,6 +15,7 @@ import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -28,8 +31,8 @@ public class CreateVisitProcessor implements RequestProcessor {
     @Override
     public void execute(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws Exception {
         RequestDto requestDto = context.getParsingResult().getValue().get();
-        int bytesReceived = context.getLengthInputBuffer();
-        int bytesParsed = requestDto.getBytesParsed();
+//        int bytesReceived = context.getLengthInputBuffer();
+//        int bytesParsed = requestDto.getBytesParsed();
 
         String cl = requestDto.getValueFromHeader("Content-Length");
         int contentLength = (cl == null) ? -1 : Integer.parseInt(cl);
@@ -37,7 +40,10 @@ public class CreateVisitProcessor implements RequestProcessor {
         inputByteBuffer.get(bytesBody, 0, inputByteBuffer.remaining());
         String body = new String(bytesBody, StandardCharsets.UTF_8);
         logger.debug("body = {}", body);
-        Gson gson = new Gson();
+        Gson gson = new GsonBuilder()
+                .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
+                .create();
+
         Visit newVisit = gson.fromJson(body, Visit.class);
         logger.debug("newVisit = {}", newVisit);
 
