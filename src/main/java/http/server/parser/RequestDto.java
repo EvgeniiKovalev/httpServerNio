@@ -47,6 +47,10 @@ public final class RequestDto implements AutoCloseable {
         return method.toString() + " " + uri;
     }
 
+    public String getValueFromHeader(String name) {
+        return (headers == null) ? null : headers.get(name);
+    }
+
     public HttpMethod getMethod() {
         return method;
     }

@@ -5,11 +5,16 @@ import http.server.Context;
 import http.server.application.Repository;
 import http.server.application.Visit;
 import http.server.parser.RequestDto;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 public class CreateVisitProcessor implements RequestProcessor {
+    private static final Logger logger = LogManager.getLogger(CreateVisitProcessor.class);
     private final Repository repository;
 
     public CreateVisitProcessor(Repository repository) {
@@ -20,22 +25,43 @@ public class CreateVisitProcessor implements RequestProcessor {
     @Override
     public void execute(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws Exception {
         RequestDto requestDto = context.getParsingResult().getValue().get();
-//        if (requestDto.getBytesParsed() < )
+        int bytesReceived = context.getLengthInputBuffer();
+        int bytesParsed = requestDto.getBytesParsed();
 
-        if (inputByteBuffer.position() < inputByteBuffer.limit()) {
+        String cl = requestDto.getValueFromHeader("Content-Length");
+        int contentLength = (cl == null) ? -1 : Integer.parseInt(cl);
+        byte[] bytesBody = new byte[contentLength];
 
-        }
-        int pos = inputByteBuffer.position();
-        int limit = inputByteBuffer.limit();
-        int capacity = inputByteBuffer.capacity();
-        StringBuilder action = new StringBuilder();
+        inputByteBuffer.get(bytesBody, 0, inputByteBuffer.remaining());
+        String body = new String(bytesBody, StandardCharsets.UTF_8);
+        logger.debug("body = \"{}\"", body);
+        Gson gson = new Gson();
+        Visit newVisit = gson.fromJson(body, Visit.class);
+        logger.debug("newVisit = {}", newVisit);
 
-        if (pos == limit) action.append("When parsing, fully read the inputByteBuffer.\r\n");
-        if (limit < capacity) action.append("The customer completely gave away all the data that was collected.\r\n");
-        if (limit == capacity)
-        if (pos < limit) {
+//        logger.debug(body);
 
-        }
+//        logger.debug("bytesReceived = {}, bytesParsed = {}, contentLength = {}, position = {}, limit = {} ",
+//                bytesReceived, bytesParsed, contentLength, inputByteBuffer.position(), inputByteBuffer.limit());
+
+//        logger.debug("bytesReceived = {}, bytesParsed = {}, contentLength = {}, position = {}, limit = {} ",
+//                bytesReceived, bytesParsed, contentLength, inputByteBuffer.position(), inputByteBuffer.limit());
+
+
+//        if (inputByteBuffer.position() < inputByteBuffer.limit()) {
+//
+//        }
+//        int pos = inputByteBuffer.position();
+//        int limit = inputByteBuffer.limit();
+//        int capacity = inputByteBuffer.capacity();
+//        StringBuilder action = new StringBuilder();
+//
+//        if (pos == limit) action.append("When parsing, fully read the inputByteBuffer.\r\n");
+//        if (limit < capacity) action.append("The customer completely gave away all the data that was collected.\r\n");
+//        if (limit == capacity)
+//        if (pos < limit) {
+//
+//        }
 
 //        Gson gson = new Gson();
 //        Visit visit = gson.fromJson(context.re)

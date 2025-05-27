@@ -60,16 +60,6 @@ public class RequestParser {
         return foundByte;
     }
 
-    private static void parseHeaders(RequestDto requestDto, ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
-        while (true) {
-            String headerName = parseHeaderName(inputByteBuffer, stringBuilder);
-            if (headerName.isEmpty()) break;
-
-            String headerValue = parseHeaderValue(inputByteBuffer, stringBuilder);
-            requestDto.addHeader(headerName, headerValue);
-        }
-    }
-
     public static ParsingResult parseToResult(ByteBuffer inputByteBuffer) {
         try {
             return ParsingResult.success(parse(inputByteBuffer));
@@ -90,36 +80,6 @@ public class RequestParser {
         requestDto.setBytesParsed(inputByteBuffer.position());
         inputByteBuffer.mark();
         return requestDto;
-    }
-
-    private static String parseHeaderName(ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
-        stringBuilder.setLength(0);
-        while (inputByteBuffer.hasRemaining()) {
-            byte readByte = inputByteBuffer.get();
-            if (readByte == COLON) {
-                skip(inputByteBuffer, 1);
-                break;
-            }
-            if (readByte == CR) {
-                skipUntil(inputByteBuffer, LF);
-                return "";
-            }
-            stringBuilder.append((char) readByte);
-        }
-        return stringBuilder.toString().trim();
-    }
-
-    private static String parseHeaderValue(ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
-        stringBuilder.setLength(0);
-        while (inputByteBuffer.hasRemaining()) {
-            byte readByte = inputByteBuffer.get();
-            if (readByte == CR) {
-                skipUntil(inputByteBuffer, LF);
-                break;
-            }
-            stringBuilder.append((char) readByte);
-        }
-        return stringBuilder.toString().trim();
     }
 
     private static void skip(ByteBuffer inputByteBuffer, int n) {
@@ -195,5 +155,46 @@ public class RequestParser {
             stringBuilder.append((char) code_character);
         }
         return 0;
+    }
+
+    //todo проверить для POST что не читает лишнего в header
+    private static void parseHeaders(RequestDto requestDto, ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
+        while (true) {
+            String headerName = parseHeaderName(inputByteBuffer, stringBuilder);
+            if (headerName.isEmpty()) break;
+
+            String headerValue = parseHeaderValue(inputByteBuffer, stringBuilder);
+            requestDto.addHeader(headerName, headerValue);
+        }
+    }
+
+    private static String parseHeaderName(ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
+        stringBuilder.setLength(0);
+        while (inputByteBuffer.hasRemaining()) {
+            byte readByte = inputByteBuffer.get();
+            if (readByte == COLON) {
+                skip(inputByteBuffer, 1);
+                break;
+            }
+            if (readByte == CR) {
+                skipUntil(inputByteBuffer, LF);
+                return "";
+            }
+            stringBuilder.append((char) readByte);
+        }
+        return stringBuilder.toString().trim();
+    }
+
+    private static String parseHeaderValue(ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
+        stringBuilder.setLength(0);
+        while (inputByteBuffer.hasRemaining()) {
+            byte readByte = inputByteBuffer.get();
+            if (readByte == CR) {
+                skipUntil(inputByteBuffer, LF);
+                break;
+            }
+            stringBuilder.append((char) readByte);
+        }
+        return stringBuilder.toString().trim();
     }
 }

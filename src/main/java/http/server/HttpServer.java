@@ -115,7 +115,7 @@ public class HttpServer implements AutoCloseable {
                 return;
             }
             if (clientChannel == null) return;
-            clientChannel.configureBlocking(true);
+            clientChannel.configureBlocking(false);
             clientChannel.register(selector, SelectionKey.OP_READ);
             logger.debug("New clientChannel connected: {}", clientChannel.getRemoteAddress());
         } catch (IOException e) {
