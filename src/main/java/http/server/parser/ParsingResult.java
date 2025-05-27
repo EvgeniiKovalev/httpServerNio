@@ -55,7 +55,7 @@ public class ParsingResult implements AutoCloseable {
         return value.isLeft();
     }
 
-    public long getBytesParsed() {
+    public int getBytesParsed() {
         return value.fold(
                 error -> {return 0;},
                 RequestDto::getBytesParsed

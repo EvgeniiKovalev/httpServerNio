@@ -12,6 +12,7 @@ public class Context implements AutoCloseable {
     private RequestAnswer requestAnswer;
     private boolean isClosed;
     private ByteBuffer inputBuffer;
+
     private int lengthInputBuffer;
 
     public Context() {

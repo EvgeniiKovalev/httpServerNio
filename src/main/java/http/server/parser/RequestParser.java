@@ -78,7 +78,7 @@ public class RequestParser {
         parseFirstLine(inputByteBuffer, stringBuilder, requestDto);
         parseHeaders(requestDto, inputByteBuffer, stringBuilder);
         requestDto.setBytesParsed(inputByteBuffer.position());
-        inputByteBuffer.mark();
+        inputByteBuffer.mark(); //окончание
         return requestDto;
     }
 
@@ -122,8 +122,7 @@ public class RequestParser {
             }
         }
         // http version
-        foundByte = parsePart(inputByteBuffer, END_LINE, stringBuilder);
-        System.out.println("foundByte = " + foundByte);
+        parsePart(inputByteBuffer, END_LINE, stringBuilder);
         if (stringBuilder.isEmpty()) {
             throw new AppException("HTTP request cannot be empty", HttpErrorType.BAD_REQUEST);
         }

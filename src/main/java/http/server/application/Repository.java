@@ -137,7 +137,7 @@ public class Repository implements AutoCloseable {
     public void close() throws Exception {
         if (connection != null) {
             connection.close();
-            logger.info("Соединение с Postgres закрыто");
+            logger.debug("Соединение с Postgres закрыто");
         }
     }
 }

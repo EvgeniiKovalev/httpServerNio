@@ -27,7 +27,8 @@ public class AppException extends RuntimeException {
 
     @Override
     public String getMessage() {
-        return "HTTP " + errorType.getStatusCode() + ": " + super.getMessage();
+//        return "HTTP " + errorType.getStatusCode() + ": " + super.getMessage();
+        return super.getMessage();
     }
 
     @Override

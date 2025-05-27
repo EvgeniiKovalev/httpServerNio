@@ -61,9 +61,7 @@ public class HttpServer implements AutoCloseable {
 
 
     private void initialize() throws IOException {
-        logger.debug("initialize");
-
-
+        logger.trace("initialize");
         serverChannel = ServerSocketChannel.open();
         serverChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
         serverChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
@@ -76,14 +74,14 @@ public class HttpServer implements AutoCloseable {
     }
 
     public void run() throws Exception {
-        logger.debug("run");
+        logger.trace("run");
         initialize();
         while (isRunning && serverChannel.isOpen()) {
             int readyChannels = selector.selectNow(); // blocking
             if (readyChannels == 0) {
                 continue;
             }
-            logger.debug("readyChannels: {} key(s)", readyChannels);
+            logger.trace("readyChannels: {} key(s)", readyChannels);
             Iterator<SelectionKey> keysIterator = selector.selectedKeys().iterator();
             while (keysIterator.hasNext()) {
                 SelectionKey key = keysIterator.next();
@@ -94,17 +92,17 @@ public class HttpServer implements AutoCloseable {
                 } else if (key.isWritable()) {
                     write(key);
                 } else {
-                    logger.debug("Unknown type key: {}", key.toString());
+                    logger.trace("Unknown type key: {}", key.toString());
                 }
                 keysIterator.remove();
-                logger.debug("last line of the keysIterator loop");
+                logger.trace("last line of the keysIterator loop");
             }
         }
         logger.info("Server stopped");
     }
 
     private void accept(Selector selector, ServerSocketChannel serverChannel, SelectionKey key) {
-        logger.debug("accept");
+        logger.trace("accept");
         SocketChannel clientChannel = null;
         try {
             clientChannel = serverChannel.accept();
@@ -162,7 +160,7 @@ public class HttpServer implements AutoCloseable {
 
 
     private void read(SelectionKey key) {
-        logger.debug("read");
+        logger.trace("read");
         if (key == null || !key.isValid()) return;
         SocketChannel clientChannel = (SocketChannel) key.channel();
         try {
@@ -182,7 +180,7 @@ public class HttpServer implements AutoCloseable {
 //                handleEmptyRead(clientChannel, key);
             } else if (bytesRead == -1) {
                 closeConnection(clientChannel, key);
-                logger.warn("Connection closed by clientChannel");
+                logger.trace("Connection closed by clientChannel");
             } else {
                 closeConnection(clientChannel, key);
                 logger.warn("Invalid bytesRead: {}", bytesRead);
@@ -208,7 +206,7 @@ public class HttpServer implements AutoCloseable {
 //    }
 
     private void write(SelectionKey key) {
-        logger.debug("write");
+        logger.trace("write");
         if (key == null || !key.isValid()) return;
         SocketChannel clientChannel = (SocketChannel) key.channel();
         if (!clientChannel.isOpen()) {
@@ -229,7 +227,7 @@ public class HttpServer implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
-        logger.debug("close");
+        logger.trace("close");
         IOException firstException = null;
 
         if (selector != null) {

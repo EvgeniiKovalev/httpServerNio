@@ -16,6 +16,8 @@ public final class RequestDto implements AutoCloseable {
     private Path filePath;       // Для GetStaticFile
     private boolean isLargeFile; // Нужна ли потоковая передача?
     private Map<String, String> headers = new HashMap<>();
+//    private Map<String, String> variables = new HashMap<>();
+
     private boolean isClosed;
     private int bytesParsed;
 

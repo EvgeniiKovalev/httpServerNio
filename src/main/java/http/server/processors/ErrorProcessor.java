@@ -28,15 +28,15 @@ public class ErrorProcessor implements RequestProcessor {
                 });
 
         HttpErrorType httpErrorType = errorDto.getErrorType();
+        String errorDescription = errorDto.getDescription();
         String responce = String.format("HTTP/1.1 %d %s\r\n" +
                         "Content-Type: text/html\r\n" +
-                        "<html><body><h1>%s</h1></body></html>",
+                        "\r\n<html><body><h1>%s</h1></body></html>",
                 httpErrorType.getStatusCode(),
-                errorDto.getDescription(),
-                httpErrorType.getErrorCode());
+                httpErrorType.getErrorCode(),
+                errorDescription);
         RequestAnswer requestAnswer = new RequestAnswer();
         requestAnswer.setByteBuffer(ByteBuffer.wrap(responce.getBytes(StandardCharsets.UTF_8)));
         context.setRequestAnswer(requestAnswer);
-//        clientChannel.write(ByteBuffer.wrap(responce.getBytes(StandardCharsets.UTF_8)));
     }
 }
