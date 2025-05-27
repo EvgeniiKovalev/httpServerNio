@@ -33,7 +33,7 @@ public class RequestParser {
 
     private static final ThreadLocal<StringBuilder> threadLocalStringBuilder = ThreadLocal.withInitial(() -> new StringBuilder(64));
 
-    private static byte parseParameters(RequestDto requestDto, ByteBuffer inputByteBuffer, StringBuilder stringBuilder) {
+    public static byte parseParameters(RequestDto requestDto, ByteBuffer inputByteBuffer, StringBuilder stringBuilder) {
         byte foundByte = 0;
 
         while (inputByteBuffer.hasRemaining()) {

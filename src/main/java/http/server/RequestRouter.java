@@ -5,12 +5,10 @@ import http.server.error.AppException;
 import http.server.error.ErrorDto;
 import http.server.error.ErrorFactory;
 import http.server.error.HttpErrorType;
-import http.server.parser.RequestDto;
 import http.server.processors.CreateVisitProcessor;
 import http.server.processors.ErrorProcessor;
 import http.server.processors.GetVisitsProcessor;
 import http.server.processors.RequestProcessor;
-import io.vavr.control.Either;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

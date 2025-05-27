@@ -5,12 +5,15 @@ import http.server.Context;
 import http.server.application.Repository;
 import http.server.application.Visit;
 import http.server.parser.RequestDto;
+import http.server.parser.RequestParser;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import java.util.Map;
 
 public class CreateVisitProcessor implements RequestProcessor {
@@ -31,13 +34,29 @@ public class CreateVisitProcessor implements RequestProcessor {
         String cl = requestDto.getValueFromHeader("Content-Length");
         int contentLength = (cl == null) ? -1 : Integer.parseInt(cl);
         byte[] bytesBody = new byte[contentLength];
-
         inputByteBuffer.get(bytesBody, 0, inputByteBuffer.remaining());
         String body = new String(bytesBody, StandardCharsets.UTF_8);
-        logger.debug("body = \"{}\"", body);
+        logger.debug("body = {}", body);
         Gson gson = new Gson();
         Visit newVisit = gson.fromJson(body, Visit.class);
         logger.debug("newVisit = {}", newVisit);
+
+
+
+//        inputByteBuffer.get(bytesBody, 0, inputByteBuffer.remaining());
+//        String body = URLDecoder.decode(new String(bytesBody, StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+//        logger.debug("body = \"{}\"", body);
+//        Gson gson = new Gson();
+//        Visit newVisit = gson.fromJson(body, Visit.class);
+//        logger.debug("newVisit = {}", newVisit);
+
+        //RequestDto requestDto = new RequestDto();
+//        RequestParser.parseParameters(requestDto, inputByteBuffer, new StringBuilder());
+//        Iterator<Map.Entry<String, String>> iterator = requestDto.getHeadersIterator();
+//        while (iterator.hasNext()) {
+//            Map.Entry<String, String> entry = iterator.next();
+//            logger.debug("key : \"{}\", value : \"{}\"", entry.getKey(), entry.getValue());
+//        }
 
 //        logger.debug(body);
 

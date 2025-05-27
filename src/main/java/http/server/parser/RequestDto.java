@@ -5,6 +5,7 @@ import http.server.HttpMethod;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 public final class RequestDto implements AutoCloseable {
@@ -81,6 +82,14 @@ public final class RequestDto implements AutoCloseable {
 
     public void setHeaders(Map<String, String> headers) {
         this.headers = headers;
+    }
+
+    public Iterator<Map.Entry<String, String>> getHeadersIterator() {
+        return headers.entrySet().iterator();
+    }
+
+    public Iterator<Map.Entry<String, String>> getParametersIterator() {
+        return parameters.entrySet().iterator();
     }
 
     public void addParameter(String name, String value) {
