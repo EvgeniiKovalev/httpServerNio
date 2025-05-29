@@ -88,6 +88,7 @@ public class HttpServer implements AutoCloseable {
                 Iterator<SelectionKey> keysIterator = selector.selectedKeys().iterator();
                 while (keysIterator.hasNext()) {
                     SelectionKey key = keysIterator.next();
+                    keysIterator.remove();
                     if (key.isAcceptable()) {
                         accept(selector, serverChannel, key);
                     } else if (key.isReadable()) {
@@ -97,7 +98,6 @@ public class HttpServer implements AutoCloseable {
                     } else {
                         logger.trace("Unknown type key: {}", key.toString());
                     }
-                    keysIterator.remove();
                     //logger.trace("last line of the keysIterator loop");
                 }
             }
