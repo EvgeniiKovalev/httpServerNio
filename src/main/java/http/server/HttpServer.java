@@ -27,7 +27,7 @@ public class HttpServer implements AutoCloseable {
     public final String PASSWORD_DATABASE;
     private final String HOST;
     private final int PORT;
-    private final int NUM_THEAD;
+    private final int MAX_CONNECTIONS;
     public final int BUFFER_SIZE;
     public final int MAX_HTTP_REQUEST_SIZE;
     public final int MAX_HTTP_ANSWER_SIZE;
@@ -46,7 +46,7 @@ public class HttpServer implements AutoCloseable {
         PASSWORD_DATABASE = serverConfig.getPasswordDatabase();
         HOST = serverConfig.getHost();
         PORT = Integer.parseInt(serverConfig.getPort());
-        NUM_THEAD = Integer.parseInt(serverConfig.getNumThead());
+        MAX_CONNECTIONS = Integer.parseInt(serverConfig.getMaxConnections());
         BUFFER_SIZE = Integer.parseInt(serverConfig.getBufferSize());
         MAX_HTTP_REQUEST_SIZE = Integer.parseInt(serverConfig.getMaxHttpRequestSize());
         MAX_HTTP_ANSWER_SIZE = Integer.parseInt(serverConfig.getMaxHttpAnswerSize());
@@ -101,9 +101,9 @@ public class HttpServer implements AutoCloseable {
         SocketChannel clientChannel = null;
         try {
             clientChannel = serverChannel.accept();
-            if (selector.keys().size() >= NUM_THEAD) {
+            if (selector.keys().size() >= MAX_CONNECTIONS) {
                 logger.warn("Max connections reached (active connection={}, MAX_CONNECTIONS = {}), " +
-                        "rejecting new connection", selector.keys().size(), NUM_THEAD);
+                        "rejecting new connection", selector.keys().size(), MAX_CONNECTIONS);
                 clientChannel.close();
                 return;
             }

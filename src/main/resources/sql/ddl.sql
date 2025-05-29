@@ -11,7 +11,7 @@ create table if not exists db_spec.visit (
 );
 
 comment on table db_spec.visit is 'Предварительная запись';
-comment on column db_spec.visit.id is 'Уникальный идентификатор специалиста';
+comment on column db_spec.visit.id is 'Уникальный идентификатор строки';
 comment on column db_spec.visit.fio is 'ФИО записавшегося';
 comment on column db_spec.visit.contact is 'Контакт для связи (номер телефона, email, имя аккаунта в Telegram/WhatsApp)';
 comment on column db_spec.visit.start_time is 'Дата и время начала сеанса';

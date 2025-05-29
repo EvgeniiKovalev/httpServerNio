@@ -41,8 +41,8 @@ public class ServerConfig {
         return properties.getProperty("server.host", "0.0.0.0");
     }
 
-    public String getNumThead() {
-        return properties.getProperty("server.num-thead", "10");
+    public String getMaxConnections() {
+        return properties.getProperty("server.max-connections", "1000");
     }
 
     public String getMaxHttpRequestSize() {

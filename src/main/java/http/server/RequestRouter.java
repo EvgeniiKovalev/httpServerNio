@@ -26,8 +26,8 @@ public class RequestRouter {
 
     public RequestRouter(Repository repository) {
         processors = Map.copyOf(initProcessors(repository));
-        methodHttp = Set.copyOf(SplitProcessors(processors, 0));
-        paths = Set.copyOf(SplitProcessors(processors, 1));
+        methodHttp = Set.copyOf(splitProcessors(processors, 0));
+        paths = Set.copyOf(splitProcessors(processors, 1));
         errorProcessor = processors.get(ErrorProcessor.class.getSimpleName());
         if (errorProcessor == null) {
             throw new RuntimeException("ErrorProcessor must be registered in processors");
@@ -53,7 +53,7 @@ public class RequestRouter {
         return result;
     }
 
-    private Set<String> SplitProcessors(Map<String, RequestProcessor> processors, int index) {
+    private Set<String> splitProcessors(Map<String, RequestProcessor> processors, int index) {
         Set<String> result = new HashSet<>();
         for (String key : processors.keySet()) {
             String[] keySplitted = key.split(" ", 2);
