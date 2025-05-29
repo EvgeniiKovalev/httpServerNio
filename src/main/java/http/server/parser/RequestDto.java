@@ -3,17 +3,17 @@ package http.server.parser;
 import http.server.HttpMethod;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class RequestDto implements AutoCloseable {
-    private final Map<String, String> parameters = new HashMap<>();
+    private final Map<String, String> parameters = new ConcurrentHashMap<>();
     private HttpMethod method;
     private String methodRaw;
     private String uri;
     private String httpVersion;
-    private Map<String, String> headers = new HashMap<>();
+    private Map<String, String> headers = new ConcurrentHashMap<>();
 
     private boolean isClosed;
     private int bytesParsed;
