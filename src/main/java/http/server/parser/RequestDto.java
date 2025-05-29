@@ -3,7 +3,6 @@ package http.server.parser;
 import http.server.HttpMethod;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -128,7 +127,6 @@ public final class RequestDto implements AutoCloseable {
         if (isClosed) return;
         parameters.clear();
         headers.clear();
-        filePath = null;
         isClosed = true;
     }
 }

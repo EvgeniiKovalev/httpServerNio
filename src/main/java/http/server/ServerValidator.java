@@ -31,16 +31,16 @@ public class ServerValidator {
             throw new IllegalArgumentException("Port must be > 0 and < 65535");
         }
 
-        String maxConnections = serverConfig.getMaxConnections();
-        if (maxConnections == null || maxConnections.trim().isEmpty()) {
-            throw new IllegalArgumentException("Max connections must be not empty");
+        String numThead = serverConfig.getNumThead();
+        if (numThead == null || numThead.trim().isEmpty()) {
+            throw new IllegalArgumentException("Number thead must be not empty");
         }
         try {
-            int maxConnectionsInt = Integer.parseInt(maxConnections);
-            if (maxConnectionsInt <= 0 || maxConnectionsInt > 1000)
-                throw new IllegalArgumentException("Max connections must be > 0 and <= 1000");
+            int numTheadInt = Integer.parseInt(numThead);
+            if (numTheadInt <= 0 || numTheadInt > 1000)
+                throw new IllegalArgumentException("Number thead must be > 0 and <= 100");
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Max connections must be > 0 and <= 1000");
+            throw new IllegalArgumentException("Number thead must be > 0 and <= 100");
         }
 
         String bufferSize = serverConfig.getBufferSize();

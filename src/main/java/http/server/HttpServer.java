@@ -18,6 +18,8 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class HttpServer implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(HttpServer.class);
@@ -27,12 +29,13 @@ public class HttpServer implements AutoCloseable {
     public final String PASSWORD_DATABASE;
     private final String HOST;
     private final int PORT;
-    private final int MAX_CONNECTIONS;
+    private final int NUM_THEAD;
     public final int BUFFER_SIZE;
     public final int MAX_HTTP_REQUEST_SIZE;
     public final int MAX_HTTP_ANSWER_SIZE;
     private ServerSocketChannel serverChannel;
     private Selector selector;
+    private final ExecutorService pool;
     private volatile boolean isRunning;
 
 
@@ -46,13 +49,14 @@ public class HttpServer implements AutoCloseable {
         PASSWORD_DATABASE = serverConfig.getPasswordDatabase();
         HOST = serverConfig.getHost();
         PORT = Integer.parseInt(serverConfig.getPort());
-        MAX_CONNECTIONS = Integer.parseInt(serverConfig.getMaxConnections());
+        NUM_THEAD = Integer.parseInt(serverConfig.getNumThead());
         BUFFER_SIZE = Integer.parseInt(serverConfig.getBufferSize());
         MAX_HTTP_REQUEST_SIZE = Integer.parseInt(serverConfig.getMaxHttpRequestSize());
         MAX_HTTP_ANSWER_SIZE = Integer.parseInt(serverConfig.getMaxHttpAnswerSize());
 
         Repository repository = new Repository(DATABASE_URL, USER_DATABASE, PASSWORD_DATABASE);
         requestRouter = new RequestRouter(repository);
+        this.pool = Executors.newFixedThreadPool(NUM_THEAD);
     }
 
 
@@ -72,29 +76,35 @@ public class HttpServer implements AutoCloseable {
     public void run() throws Exception {
         logger.trace("run");
         initialize();
-        while (isRunning && serverChannel.isOpen()) {
-            int readyChannels = selector.select(); // blocking
-            if (readyChannels == 0) {
-                continue;
-            }
-            logger.trace("readyChannels: {} key(s)", readyChannels);
-            Iterator<SelectionKey> keysIterator = selector.selectedKeys().iterator();
-            while (keysIterator.hasNext()) {
-                SelectionKey key = keysIterator.next();
-                if (key.isAcceptable()) {
-                    accept(selector, serverChannel, key);
-                } else if (key.isReadable()) {
-                    read(key);
-                } else if (key.isWritable()) {
-                    write(key);
-                } else {
-                    logger.trace("Unknown type key: {}", key.toString());
+        try {
+            while (isRunning && serverChannel.isOpen()) {
+                int readyChannels = selector.select(); // blocking
+                if (readyChannels == 0) {
+                    continue;
                 }
-                keysIterator.remove();
-                logger.trace("last line of the keysIterator loop");
+                logger.trace("readyChannels: {} key(s)", readyChannels);
+                Iterator<SelectionKey> keysIterator = selector.selectedKeys().iterator();
+                while (keysIterator.hasNext()) {
+                    SelectionKey key = keysIterator.next();
+                    if (key.isAcceptable()) {
+                        accept(selector, serverChannel, key);
+                    } else if (key.isReadable()) {
+                        pool.submit(() -> read(key));
+                    } else if (key.isWritable()) {
+                        pool.submit(() -> write(key));
+                    } else {
+                        logger.trace("Unknown type key: {}", key.toString());
+                    }
+                    keysIterator.remove();
+                    //logger.trace("last line of the keysIterator loop");
+                }
             }
+        } finally {
+            if (!pool.isShutdown()) {
+                pool.shutdown();
+            }
+            logger.info("Server stopped");
         }
-        logger.info("Server stopped");
     }
 
     private void accept(Selector selector, ServerSocketChannel serverChannel, SelectionKey key) {
@@ -102,9 +112,9 @@ public class HttpServer implements AutoCloseable {
         SocketChannel clientChannel = null;
         try {
             clientChannel = serverChannel.accept();
-            if (selector.keys().size() >= MAX_CONNECTIONS) {
+            if (selector.keys().size() >= NUM_THEAD) {
                 logger.warn("Max connections reached (active connection={}, MAX_CONNECTIONS = {}), " +
-                        "rejecting new connection", selector.keys().size(), MAX_CONNECTIONS);
+                        "rejecting new connection", selector.keys().size(), NUM_THEAD);
                 clientChannel.close();
                 return;
             }
