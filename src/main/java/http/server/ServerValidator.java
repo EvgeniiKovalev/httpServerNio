@@ -43,64 +43,40 @@ public class ServerValidator {
             throw new IllegalArgumentException("Max connections must be > 0 and <= 1000");
         }
 
-        String bufferSizeKb = serverConfig.getBufferSizeKb();
-        if (bufferSizeKb == null || bufferSizeKb.trim().isEmpty()) {
+        String bufferSize = serverConfig.getBufferSize();
+        if (bufferSize == null || bufferSize.trim().isEmpty()) {
             throw new IllegalArgumentException("Buffer size must be not empty");
         }
         try {
-            int bufferSizeKbInt = Integer.parseInt(bufferSizeKb);
-            if (bufferSizeKbInt < 1 || bufferSizeKbInt > 1024)
-                throw new IllegalArgumentException("Buffer size(KB) must be >= 1 and <= 1024");
+            int bufferSizeInt = Integer.parseInt(bufferSize);
+            if (bufferSizeInt < 1 || bufferSizeInt > 8192)
+                throw new IllegalArgumentException("Buffer size must be >= 1 and <= 8192");
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Buffer size(KB) must be >= 1 and <= 1024");
+            throw new IllegalArgumentException("Buffer size must be >= 1 and <= 8192");
         }
 
-        String maxHttpHeaderSizeKb = serverConfig.getMaxHttpHeaderSizeKb();
-        if (maxHttpHeaderSizeKb == null || maxHttpHeaderSizeKb.trim().isEmpty()) {
-            throw new IllegalArgumentException("Max http header size(KB) must be not empty");
+        String maxHttpRequestSize = serverConfig.getMaxHttpRequestSize();
+        if (maxHttpRequestSize == null || maxHttpRequestSize.trim().isEmpty()) {
+            throw new IllegalArgumentException("Max http request size must be not empty");
         }
         try {
-            int maxHttpHeaderSizeKbInt = Integer.parseInt(maxHttpHeaderSizeKb);
-            if (maxHttpHeaderSizeKbInt < 8 || maxHttpHeaderSizeKbInt > 16)
-                throw new IllegalArgumentException("Max http header size(KB) must be >= 8 and <= 16");
+            int maxHttpRequestSizeInt = Integer.parseInt(maxHttpRequestSize);
+            if (maxHttpRequestSizeInt < 1 || maxHttpRequestSizeInt > 8192)
+                throw new IllegalArgumentException("Max http request size must be >= 1  and <= 8192");
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Max http header size(KB) must be >= 8 and <= 16");
+            throw new IllegalArgumentException("Max http request size(MB) must be >= 1 and <= 8192");
         }
 
-        String maxHttpRequestSizeMb = serverConfig.getMaxHttpRequestSizeMb();
-        if (maxHttpRequestSizeMb == null || maxHttpRequestSizeMb.trim().isEmpty()) {
-            throw new IllegalArgumentException("Max http request size(MB) must be not empty");
+        String maxHttpAnswerSize = serverConfig.getMaxHttpAnswerSize();
+        if (maxHttpAnswerSize == null || maxHttpAnswerSize.trim().isEmpty()) {
+            throw new IllegalArgumentException("Max http answer size must be not empty");
         }
         try {
-            int maxHttpRequestSizeMbInt = Integer.parseInt(maxHttpRequestSizeMb);
-            if (maxHttpRequestSizeMbInt < 2 || maxHttpRequestSizeMbInt > 10)
-                throw new IllegalArgumentException("Max http request size(MB) must be >= 2 and <= 10");
+            int maxHttpAnswerSizeInt = Integer.parseInt(maxHttpAnswerSize);
+            if (maxHttpAnswerSizeInt < 1 || maxHttpAnswerSizeInt > 8192)
+                throw new IllegalArgumentException("Max http answer size must be >= 1 and <= 8192");
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Max http request size(MB) must be >= 2 and <= 10");
-        }
-
-        String maxHttpAnswerSizeMb = serverConfig.getMaxHttpAnswerSizeMb();
-        if (maxHttpAnswerSizeMb == null || maxHttpAnswerSizeMb.trim().isEmpty()) {
-            throw new IllegalArgumentException("Max http answer size(MB) must be not empty");
-        }
-        try {
-            int maxHttpAnswerSizeMbInt = Integer.parseInt(maxHttpAnswerSizeMb);
-            if (maxHttpAnswerSizeMbInt < 2 || maxHttpAnswerSizeMbInt > 10)
-                throw new IllegalArgumentException("Max http answer size(MB) must be >= 2 and <= 10");
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Max http answer size(MB) must be >= 2 and <= 10");
-        }
-
-        String maxEmptyRead = serverConfig.getMaxEmptyRead();
-        if (maxEmptyRead == null || maxEmptyRead.trim().isEmpty()) {
-            throw new IllegalArgumentException("Max empty read must be not empty");
-        }
-        try {
-            int maxEmptyReadInt = Integer.parseInt(maxEmptyRead);
-            if (maxEmptyReadInt < 1 || maxEmptyReadInt > 10)
-                throw new IllegalArgumentException("Max empty read must be >= 1 and <= 10");
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Max empty read must be >= 1 and <= 10");
+            throw new IllegalArgumentException("Max http answer size must be >= 1 and <= 8192");
         }
     }
 }

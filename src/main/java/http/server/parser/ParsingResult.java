@@ -1,13 +1,16 @@
 package http.server.parser;
 
+import http.server.error.AppException;
 import http.server.error.ErrorDto;
 import http.server.error.ErrorFactory;
-import http.server.error.HttpErrorType;
 import io.vavr.control.Either;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 
 public class ParsingResult implements AutoCloseable {
+    private static final Logger logger = LogManager.getLogger(ParsingResult.class);
     private Either<ErrorDto, RequestDto> value;
     private boolean isClosed;
 
@@ -16,26 +19,19 @@ public class ParsingResult implements AutoCloseable {
         this.value = value;
     }
 
-    public static ParsingResult success(RequestDto dto) {
-        return new ParsingResult(Either.right(dto));
+    public static ParsingResult success(RequestDto requestDto) {
+        return new ParsingResult(Either.right(requestDto));
     }
 
-    public static ParsingResult error(HttpErrorType errorType, String description) {
+    public static ParsingResult error(AppException ex) {
+        logger.error(ex.getMessage(), ex);
         return new ParsingResult(Either.left(
-                ErrorFactory.createErrorDto(errorType, description)
+                ErrorFactory.createErrorDto(ex)
         ));
     }
 
-    public static ParsingResult badRequest(String description) {
-        return error(HttpErrorType.BAD_REQUEST, description);
-    }
-
-    public static ParsingResult notFound(String description) {
-        return error(HttpErrorType.NOT_FOUND, description);
-    }
-
-    public static ParsingResult internalError(String description) {
-        return error(HttpErrorType.INTERNAL_SERVER_ERROR, description);
+    public static ParsingResult error(ErrorDto errorDto) {
+        return new ParsingResult(Either.left(errorDto));
     }
 
     public Either<ErrorDto, RequestDto> getValue() {
@@ -56,10 +52,22 @@ public class ParsingResult implements AutoCloseable {
 
     public int getBytesParsed() {
         return value.fold(
-                error -> {
-                    return 0;
-                },
+                error -> 0,
                 RequestDto::getBytesParsed
+        );
+    }
+
+    public String getMethod() {
+        return value.fold(
+                ErrorDto::getMethodRaw ,
+                RequestDto::getMethodRaw
+        );
+    }
+
+    public String getUri() {
+        return value.fold(
+                ErrorDto::getUri,
+                RequestDto::getUri
         );
     }
 

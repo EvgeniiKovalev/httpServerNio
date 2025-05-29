@@ -2,9 +2,12 @@ package http.server.parser;
 
 import http.server.HttpMethod;
 import http.server.error.AppException;
-import http.server.error.HttpErrorType;
+import http.server.error.ErrorFactory;
 
+import java.net.URLDecoder;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 /**
@@ -24,12 +27,16 @@ public class RequestParser {
     private static final byte SPACE = (byte) ' ';
     private static final byte QUESTION = (byte) '?';
     private static final byte COLON = (byte) ':';
+    private static final byte QUOTES = (byte) '"';
+    private static final Set<Byte> SET_EXC_FOR_PARAM = Set.of(QUESTION);
     private static final Set<Byte> SET_FOR_URI = Set.of(QUESTION, SPACE, CR, LF);
     private static final Set<Byte> END_LINE_WITH_SPACE = Set.of(SPACE, CR, LF);
     private static final Set<Byte> END_LINE_WITH_ZERO = Set.of(CR, LF, (byte) 0);
     private static final Set<Byte> END_LINE = Set.of(CR, LF);
     private static final Set<Byte> END_PARAM_NAME = Set.of(EQUALITY, AMP, SPACE, CR, LF);
     private static final Set<Byte> END_PARAM_VALUE = Set.of(AMP, SPACE, CR, LF);
+    private static final Charset utf8 = StandardCharsets.UTF_8;
+
 
     private static final ThreadLocal<StringBuilder> threadLocalStringBuilder = ThreadLocal.withInitial(() -> new StringBuilder(64));
 
@@ -37,19 +44,23 @@ public class RequestParser {
         byte foundByte = 0;
 
         while (inputByteBuffer.hasRemaining()) {
-            foundByte = parsePart(inputByteBuffer, END_PARAM_NAME, stringBuilder);
+            foundByte = parsePart(inputByteBuffer, END_PARAM_NAME, stringBuilder, SET_EXC_FOR_PARAM, "INCORRECT_REQUEST_PARAMETER");
             if (foundByte != EQUALITY) {
-                throw new AppException("Parameter name not specified in request URI", HttpErrorType.BAD_REQUEST);
+                throw ErrorFactory.badRequest("Parameter name not specified in request URI",
+                        "INCORRECT_REQUEST_PARAMETER");
             }
             if (stringBuilder.isEmpty()) {
-                throw new AppException("Parameter name cannot be empty in request URI", HttpErrorType.BAD_REQUEST);
+                throw ErrorFactory.badRequest("Parameter name cannot be empty in request URI",
+                        "INCORRECT_REQUEST_PARAMETER");
             }
-            String name = stringBuilder.toString();
+            String name = URLDecoder.decode(stringBuilder.toString(), utf8);
             foundByte = parsePart(inputByteBuffer, END_PARAM_VALUE, stringBuilder);
             if (stringBuilder.isEmpty()) {
-                throw new AppException("Parameter value with parameter name '" + name + "' cannot be empty in request URI", HttpErrorType.BAD_REQUEST);
+                throw ErrorFactory.badRequest("Parameter value with parameter name '" +
+                        name + "' cannot be empty in request URI",
+                        "INCORRECT_REQUEST_PARAMETER");
             }
-            requestDto.addParameter(name, stringBuilder.toString());
+            requestDto.addParameter(name,  URLDecoder.decode(stringBuilder.toString(), utf8));
             if (END_LINE_WITH_SPACE.contains(foundByte)) {
                 break;
             }
@@ -64,13 +75,13 @@ public class RequestParser {
         try {
             return ParsingResult.success(parse(inputByteBuffer));
         } catch (AppException e) {
-            return ParsingResult.error(e.getErrorType(), e.getMessage());
+            return ParsingResult.error(e);
         }
     }
 
     public static RequestDto parse(ByteBuffer inputByteBuffer) throws AppException {
         if (inputByteBuffer == null) {
-            throw new AppException("inputByteBuffer is null", HttpErrorType.INTERNAL_SERVER_ERROR);
+            throw ErrorFactory.internalServerError("inputByteBuffer is null");
         }
         inputByteBuffer.flip();
         RequestDto requestDto = new RequestDto();
@@ -78,7 +89,6 @@ public class RequestParser {
         parseFirstLine(inputByteBuffer, stringBuilder, requestDto);
         parseHeaders(requestDto, inputByteBuffer, stringBuilder);
         requestDto.setBytesParsed(inputByteBuffer.position());
-        inputByteBuffer.mark(); //окончание
         return requestDto;
     }
 
@@ -90,62 +100,89 @@ public class RequestParser {
         while (inputByteBuffer.hasRemaining()) {
             if (inputByteBuffer.get() == stopByte) return;
         }
-        throw new AppException("Expected character with code '" + stopByte + "' not found", HttpErrorType.BAD_REQUEST);
+        throw ErrorFactory.badRequest("Expected character with code '" + stopByte + "' not found",
+                "INCORRECT_REQUEST_PARAMETER");
     }
 
     private static void parseFirstLine(ByteBuffer inputByteBuffer, StringBuilder stringBuilder, RequestDto requestDto) throws AppException {
+
         // http method
         byte foundByte = parsePart(inputByteBuffer, END_LINE_WITH_SPACE, stringBuilder);
-        try {
-            requestDto.setMethod(HttpMethod.valueOf(stringBuilder.toString()));
-        } catch (IllegalArgumentException e) {
-            throw new AppException("Invalid HTTP method: " + stringBuilder, HttpErrorType.BAD_REQUEST, e);
-        }
+        requestDto.setMethodRaw(stringBuilder.toString());
+
         if (END_LINE_WITH_ZERO.contains(foundByte)) {
-            throw new AppException("HTTP request is invalid", HttpErrorType.BAD_REQUEST);
+            throw ErrorFactory.badRequest("HTTP request is invalid");
         }
+
         // uri
         foundByte = parsePart(inputByteBuffer, SET_FOR_URI, stringBuilder);
         if (END_LINE_WITH_ZERO.contains(foundByte)) {
-            throw new AppException("HTTP version not specified", HttpErrorType.BAD_REQUEST);
+            throw ErrorFactory.badRequest("HTTP version not specified");
         }
         boolean uriCanBeEmpty = (foundByte == QUESTION);
         if (!uriCanBeEmpty && stringBuilder.isEmpty()) {
-            throw new AppException("URI not specified", HttpErrorType.BAD_REQUEST);
+            throw ErrorFactory.badRequest("URI not specified");
         }
-        requestDto.setUri(stringBuilder.toString());
+        requestDto.setUri(URLDecoder.decode(stringBuilder.toString(),utf8));
+        if (requestDto.getUri().length() >= 1024) {
+            throw ErrorFactory.badRequest("URI Too Long");
+        }
+
+        //This is here to have the URI read for an unknown HTTP method
+        try {
+            requestDto.setMethod(HttpMethod.valueOf(requestDto.getMethodRaw()));
+        } catch (IllegalArgumentException ex) {
+            throw ErrorFactory.badRequest(
+                    "Invalid HTTP method: " + requestDto.getMethodRaw(),
+                    requestDto.getMethodRaw(),
+                    requestDto.getUri(),
+                    ex
+            );
+        }
+
         // parameters
         if (foundByte == QUESTION) {
             foundByte = parseParameters(requestDto, inputByteBuffer, stringBuilder);
             if (END_LINE_WITH_ZERO.contains(foundByte)) {
-                throw new AppException("HTTP version not specified", HttpErrorType.BAD_REQUEST);
+                throw ErrorFactory.badRequest("HTTP version not specified");
             }
         }
         // http version
         parsePart(inputByteBuffer, END_LINE, stringBuilder);
         if (stringBuilder.isEmpty()) {
-            throw new AppException("HTTP request cannot be empty", HttpErrorType.BAD_REQUEST);
+            throw ErrorFactory.badRequest("HTTP request cannot be empty");
         }
         String httpVersion = stringBuilder.toString();
         if (!httpVersion.equals("HTTP/1.1")) {
-            throw new AppException("Unsupported HTTP protocol version", HttpErrorType.BAD_REQUEST);
+            throw ErrorFactory.badRequest("Unsupported HTTP protocol version");
         }
         requestDto.setHttpVersion(httpVersion);
 
     }
 
     private static byte parsePart(ByteBuffer inputByteBuffer, Set<Byte> stopChars, StringBuilder stringBuilder) throws AppException {
+        return parsePart(inputByteBuffer, stopChars, stringBuilder, null, null);
+    }
+
+    private static byte parsePart(ByteBuffer inputByteBuffer, Set<Byte> stopChars, StringBuilder stringBuilder, Set<Byte> exceptionChar, String desc) throws AppException {
         stringBuilder.setLength(0);
+        int countQuotes = 0;
         while (inputByteBuffer.hasRemaining()) {
             byte code_character = inputByteBuffer.get();
+
+            if (exceptionChar != null ) {
+                if (code_character == QUOTES) countQuotes++;
+                if (exceptionChar.contains(code_character) && (countQuotes == 0 || countQuotes % 2 != 0)) throw ErrorFactory.badRequest(desc);
+            }
+
             if (stopChars.contains(code_character)) {
                 switch (code_character) {
                     case CR:
                         if (inputByteBuffer.hasRemaining() && inputByteBuffer.get() != LF)
-                            throw new AppException("Carriage return character not at end of line", HttpErrorType.BAD_REQUEST);
+                            throw ErrorFactory.badRequest("Carriage return character not at end of line");
                         break;
                     case LF:
-                        throw new AppException("Line break character without preceding carriage break character", HttpErrorType.BAD_REQUEST);
+                        throw ErrorFactory.badRequest("Line break character without preceding carriage break character");
                     default:
                         return code_character;
                 }
@@ -156,7 +193,7 @@ public class RequestParser {
         return 0;
     }
 
-    //todo проверить для POST что не читает лишнего в header
+
     private static void parseHeaders(RequestDto requestDto, ByteBuffer inputByteBuffer, StringBuilder stringBuilder) throws AppException {
         while (true) {
             String headerName = parseHeaderName(inputByteBuffer, stringBuilder);

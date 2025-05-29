@@ -2,6 +2,8 @@ package http.server.application;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import http.server.error.AppException;
+import http.server.error.ErrorFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,52 +45,13 @@ public class Repository implements AutoCloseable {
         return DriverManager.getConnection(databaseUrl, userDatabase, passwordDatabase);
     }
 
-    /**
-     * Writes a Visit instance to the database
-     *
-     * @param visit
-     * @param connection
-     * @return will return a number greater than zero, equal to the id of the recorded table row,
-     * otherwise -1 if the record of a new Visit fails, -2 if the record of an existing Visit fails to update
-     * @throws SQLException
-     */
-    int saveVisitTable(Visit visit, Connection connection) throws SQLException {
-        int visitId = visit.getId();
-        int result = -3;
-        if (visitId <= 0) {
-            try (PreparedStatement ps = connection.prepareStatement(Constants.INSERT_NEW_VISIT_QUERY)) {
-                ps.setString(1, visit.getFio());
-                ps.setString(2, visit.getContact());
-                ps.setTimestamp(3, Timestamp.valueOf(visit.getStartTime()));
-                ps.setTimestamp(4, Timestamp.valueOf(visit.getEndTime()));
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        visitId = rs.getInt("id");
-                        result = visitId > 0 ? visitId : -1;
-                        visit.setId(visitId);
-//                        if (visitId <= 0) {
-//                            ErrorFactory.internalErrorWithDto("Failed to save new Visit= '" + visit+ "'",
-//                                    "description: Failed to save new Visit= '" + visit+ "'");
-//                            logger.error("Failed to save new vizit " + visit);
-//                        }
-                    }
-                }
-            }
-        } else {
-            try (PreparedStatement ps = connection.prepareStatement(Constants.UPDATE_EXIST_VISIT_QUERY)) {
-                ps.setString(1, visit.getFio());
-                ps.setString(2, visit.getContact());
-                ps.setTimestamp(3, Timestamp.valueOf(visit.getStartTime()));
-                ps.setTimestamp(4, Timestamp.valueOf(visit.getEndTime()));
-                ps.setInt(5, visit.getId());
-                result = ps.executeUpdate() > 0 ? visitId : -2;
-//                if (ps.executeUpdate() == 0) {
-//                    ErrorFactory.notFoundErrorWithDto("Visit with id = '" + visit + "' not found",
-//                            "description: Visit with id = '" + visit + "' not found");
-//                }
+    public boolean checkExistVisitById(int id) throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(Constants.CHECK_EXIST_VISIT_BY_ID_QUERY)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
             }
         }
-        return result;
     }
 
     public Visit getVisitById(int id) throws SQLException {
@@ -106,44 +69,26 @@ public class Repository implements AutoCloseable {
         }
     }
 
-    /**
-     * Wrap a visit record in a transaction and logs errors
-     *
-     * @param visit
-     * @return Will return true on successful write, otherwise false
-     */
-    public boolean saveVisit(Visit visit) {
-        if (visit == null) {
-            logger.error("Empty Visit passed");
-            return false;
+    public boolean deleteVisitById(int id) throws SQLException {
+        if (id <= 0) {
+            throw ErrorFactory.internalServerError("id for delete must be > 0");
         }
-        String errorMessage;
-        try (Connection connection = getConnection()) {
+        try (Connection connection = getConnection();
+             PreparedStatement ps = connection.prepareStatement(Constants.DELETE_VISIT_BY_ID_QUERY)) {
             connection.setAutoCommit(false);
-            int res = saveVisitTable(visit, connection);
-            if (res < 0) {
+            ps.setInt(1, id);
+            try {
+                if (ps.executeUpdate() > 0) {
+                    connection.commit();
+                    return true;
+                }
                 connection.rollback();
-                switch (res) {
-                    case -1 -> errorMessage = "Failed to save new Visit= '" + visit + "'";
-                    case -2 -> errorMessage = "Failed to update Visit with id = '" + visit + "' not found";
-                    default -> errorMessage = "Unknown result saveVisitTable";
-                }
-                logger.error(errorMessage);
-                return false;
-            }
-            connection.commit();
-        } catch (SQLException e) {
-            logger.error(e.getMessage(), e);
-            if (connection != null) {
-                try {
-                    connection.rollback();
-                } catch (SQLException ex) {
-                    logger.error(ex.getMessage(), ex);
-                }
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
             }
             return false;
         }
-        return true;
     }
 
     public List<Visit> getAllVisits() throws SQLException{
@@ -162,6 +107,101 @@ public class Repository implements AutoCloseable {
             return result;
         }
     }
+
+    /**
+     * Inserts a new Visit record into the database within a transaction.
+     * Sets the generated ID to the Visit object if successful.
+     *
+     * @param visit the Visit object to persist (non-null)
+     * @return true if inserted successfully with valid ID, false otherwise
+     * @throws AppException,SQLException if database error occurs or passed empty visit
+     */
+    public boolean insertVisit (Visit visit) throws AppException,SQLException {
+        if (visit == null) {
+            throw ErrorFactory.internalServerError("Null Visit passed to insertVisit");
+        }
+        try (Connection connection = getConnection();
+             PreparedStatement ps = connection.prepareStatement(
+                     Constants.INSERT_NEW_VISIT_QUERY,
+                     Statement.RETURN_GENERATED_KEYS)) {
+            connection.setAutoCommit(false);
+            ps.setString(1, visit.getFio());
+            ps.setString(2, visit.getContact());
+            ps.setTimestamp(3, Timestamp.valueOf(visit.getStartTime()));
+            ps.setTimestamp(4, Timestamp.valueOf(visit.getEndTime()));
+            ps.executeUpdate();
+            try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    visit.setId(generatedKeys.getInt(1));
+                    connection.commit();
+                    return true;
+                }
+                connection.rollback();
+                logger.error("No generated keys after insert for Visit: {}", visit);
+            } catch (SQLException e) {
+                throw ErrorFactory.internalServerError(e.getMessage(), e);
+            }
+        }
+        return false;
+    }
+
+    public boolean checkOverlapsPeriod(LocalDateTime startPeriod, LocalDateTime endPeriod, int excludeId) throws AppException,SQLException {
+        if (startPeriod == null || endPeriod == null) {
+            throw ErrorFactory.internalServerError("Null startPeriod or null endPeriod passed to checkOverlapsPeriod");
+        }
+
+        try (PreparedStatement ps = connection.prepareStatement(Constants.SELECT_VISIT_BY_OVERLAPS_PERIOD_QUERY)) {
+            ps.setInt(1, excludeId);
+            ps.setTimestamp(2, Timestamp.valueOf(endPeriod));
+            ps.setTimestamp(3, Timestamp.valueOf(startPeriod));
+
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            } catch (SQLException e) {
+                throw ErrorFactory.internalServerError(e.getMessage(), e);
+            }
+        }
+    }
+
+
+    /**
+     * Updates existing Visit record into the database within a transaction.
+     *
+     * @param visit the Visit object to update (non-null)
+     * @return true if updated successfully, false otherwise
+     * @throws AppException,SQLException if database error occurs or passed empty visit
+     */
+    public boolean updateVisit (Visit visit) throws AppException,SQLException {
+        if (visit == null) {
+            throw ErrorFactory.internalServerError("Null Visit passed to updateVisit");
+        }
+
+
+        try (Connection connection = getConnection();
+             PreparedStatement ps = connection.prepareStatement(
+                     Constants.UPDATE_EXIST_VISIT_QUERY,
+                     Statement.RETURN_GENERATED_KEYS)) {
+            connection.setAutoCommit(false);
+            ps.setString(1, visit.getFio());
+            ps.setString(2, visit.getContact());
+            ps.setTimestamp(3, Timestamp.valueOf(visit.getStartTime()));
+            ps.setTimestamp(4, Timestamp.valueOf(visit.getEndTime()));
+            ps.setInt(5, visit.getId());
+            ps.executeUpdate();
+            try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    connection.commit();
+                    return true;
+                }
+                connection.rollback();
+                logger.error("No generated keys after update for Visit: {}", visit);
+            } catch (SQLException e) {
+                throw ErrorFactory.internalServerError(e.getMessage(), e);
+            }
+        }
+        return false;
+    }
+
 
     @Override
     public void close() throws Exception {

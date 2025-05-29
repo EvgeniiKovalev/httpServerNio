@@ -7,8 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 public class ServerConfig {
-    //todo добавить server.idleTimeout = 30000 ?
-    //todo добавить server.maxThreads= 10 ?
     private final Properties properties;
 
     public ServerConfig() {
@@ -44,27 +42,19 @@ public class ServerConfig {
     }
 
     public String getMaxConnections() {
-        return properties.getProperty("server.max-connections", "1000");
+        return properties.getProperty("server.max-connections", "10");
     }
 
-    public String getMaxHttpHeaderSizeKb() {
-        return properties.getProperty("server.max-http-header-size-kb", "8");
+    public String getMaxHttpRequestSize() {
+        return properties.getProperty("server.max-http-request-size", "100");
     }
 
-    public String getMaxHttpRequestSizeMb() {
-        return properties.getProperty("server.max-http-request-size-mb", "2");
+    public String getMaxHttpAnswerSize() {
+        return properties.getProperty("server.max-http-answer-size", "100");
     }
 
-    public String getMaxHttpAnswerSizeMb() {
-        return properties.getProperty("server.max-http-answer-size-mb", "10");
-    }
-
-    public String getBufferSizeKb() {
-        return properties.getProperty("server.buffer-size-kb", "8");
-    }
-
-    public String getMaxEmptyRead() {
-        return properties.getProperty("server.max-empty-read", "3");
+    public String getBufferSize() {
+        return properties.getProperty("server.buffer-size", "8192");
     }
 
 }

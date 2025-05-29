@@ -1,41 +1,85 @@
 package http.server.error;
 
 public class AppException extends RuntimeException {
+    private String methodRaw;
+    private String uri;
     private final HttpErrorType errorType;
+    private final String customErrorCode;
 
-    public AppException(String message, HttpErrorType errorType) {
+
+    protected AppException(String message, HttpErrorType errorType) {
         super(message);
         this.errorType = errorType;
+        this.customErrorCode = null;
     }
 
-    public AppException(String message, HttpErrorType errorType, Throwable cause) {
+    protected AppException(String message, HttpErrorType errorType, String methodRaw, String uri, Throwable cause) {
         super(message, cause);
         this.errorType = errorType;
+        this.customErrorCode = null;
+        this.methodRaw = methodRaw;
+        this.uri = uri;
     }
 
-    public static AppException create(String message, HttpErrorType errorType) {
+    protected AppException(String message, HttpErrorType errorType, Throwable cause) {
+        super(message, cause);
+        this.errorType = errorType;
+        this.customErrorCode = null;
+    }
+
+    protected AppException(String message, HttpErrorType errorType, String customErrorCode, Throwable cause) {
+        super(message, cause);
+        this.errorType = errorType;
+        this.customErrorCode = customErrorCode;
+    }
+
+
+
+    protected static AppException create(String message, HttpErrorType errorType) {
         return new AppException(message, errorType, null);
     }
 
-    public static AppException create(String message, HttpErrorType errorType, Throwable cause) {
+    protected static AppException create(String message, HttpErrorType errorType, Throwable cause) {
         return new AppException(message, errorType, cause);
     }
 
-    public HttpErrorType getErrorType() {
+    protected static AppException create(String message, HttpErrorType errorType, String customErrorCode, Throwable cause) {
+        return new AppException(message, errorType, customErrorCode, cause);
+    }
+
+    protected static AppException create(String message, HttpErrorType errorType, String methodRaw, String uri, Throwable cause) {
+        return new AppException(message, errorType, methodRaw, uri, cause);
+    }
+
+
+
+    public String getErrorCode() {
+        return (customErrorCode == null || customErrorCode.isEmpty()) ? errorType.getErrorCode() : customErrorCode;
+    }
+
+    public String getMethodRaw() {
+        return methodRaw;
+    }
+
+    public String getUri() {
+        return uri;
+    }
+
+    protected HttpErrorType getErrorType() {
         return errorType;
     }
 
     @Override
     public String getMessage() {
-//        return "HTTP " + errorType.getStatusCode() + ": " + super.getMessage();
         return super.getMessage();
     }
 
     @Override
     public String toString() {
         return "AppException{" +
-                "errorType=" + errorType +
-                ", message='" + super.getMessage() + '\'' +
-                '}';
+                "errorType=" + getErrorType() +
+                ", errorCode=" + getErrorCode() +
+                ", message='" + getMessage() +
+                "'}";
     }
 }

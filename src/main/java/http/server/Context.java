@@ -11,8 +11,7 @@ public class Context implements AutoCloseable {
     private RequestAnswer requestAnswer;
     private boolean isClosed;
     private ByteBuffer inputBuffer;
-
-    private int lengthInputBuffer;
+    private int lengthRequest = 0;
 
     public Context() {
     }
@@ -21,16 +20,20 @@ public class Context implements AutoCloseable {
         return inputBuffer;
     }
 
+    public int getLengthRequest() {
+        return lengthRequest;
+    }
+
+    public void setLengthRequest(int lengthRequest) {
+        this.lengthRequest = lengthRequest;
+    }
+
+    public void incLengthRequest(int lengthRequest) {
+        this.lengthRequest += lengthRequest;
+    }
+
     public void setInputBuffer(ByteBuffer inputBuffer) {
         this.inputBuffer = inputBuffer;
-    }
-
-    public int getLengthInputBuffer() {
-        return lengthInputBuffer;
-    }
-
-    public void setLengthInputBuffer(int lengthInputBuffer) {
-        this.lengthInputBuffer = lengthInputBuffer;
     }
 
     public void setErrorParsingResult(ErrorDto errorDto) {
@@ -56,6 +59,15 @@ public class Context implements AutoCloseable {
     public String getRoutingKey() {
         return parsingResult.getRoutingKey();
     }
+
+    public String getUri() {
+        return parsingResult.getUri();
+    }
+
+    public String getMethod() {
+        return parsingResult.getMethod();
+    }
+
 
     @Override
     public void close() throws Exception {

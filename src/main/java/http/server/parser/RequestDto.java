@@ -11,12 +11,10 @@ import java.util.Map;
 public final class RequestDto implements AutoCloseable {
     private final Map<String, String> parameters = new HashMap<>();
     private HttpMethod method;
+    private String methodRaw;
     private String uri;
     private String httpVersion;
-    private Path filePath;       // Для GetStaticFile
-    private boolean isLargeFile; // Нужна ли потоковая передача?
     private Map<String, String> headers = new HashMap<>();
-//    private Map<String, String> variables = new HashMap<>();
 
     private boolean isClosed;
     private int bytesParsed;
@@ -47,7 +45,7 @@ public final class RequestDto implements AutoCloseable {
     }
 
     public String getRoutingKey() {
-        return method.toString() + " " + uri;
+        return (method == null) ? methodRaw : method + " " + uri;
     }
 
     public String getValueFromHeader(String name) {
@@ -62,8 +60,16 @@ public final class RequestDto implements AutoCloseable {
         this.method = method;
     }
 
+    public String getMethodRaw() {
+        return methodRaw == null ? "" : methodRaw;
+    }
+
+    public void setMethodRaw(String methodRaw) {
+        this.methodRaw = methodRaw;
+    }
+
     public String getUri() {
-        return uri;
+        return uri == null ? "" : uri;
     }
 
     public void setUri(String uri) {

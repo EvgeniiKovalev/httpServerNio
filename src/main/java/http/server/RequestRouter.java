@@ -5,33 +5,37 @@ import http.server.error.AppException;
 import http.server.error.ErrorDto;
 import http.server.error.ErrorFactory;
 import http.server.error.HttpErrorType;
-import http.server.processors.CreateVisitProcessor;
-import http.server.processors.ErrorProcessor;
-import http.server.processors.GetVisitsProcessor;
-import http.server.processors.RequestProcessor;
+import http.server.processors.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class RequestRouter {
     private static final Logger logger = LogManager.getLogger(RequestRouter.class);
     private static Map<String, RequestProcessor> processors;
+    private static RequestProcessor errorProcessor;
+    private static Set<String> methodHttp;
+    private static Set<String> paths;
+
 
     public RequestRouter(Repository repository) {
         processors = Map.copyOf(initProcessors(repository));
-
-        if (!processors.containsKey(ErrorProcessor.class.getSimpleName())) {
+        methodHttp = Set.copyOf(SplitProcessors(processors, 0));
+        paths = Set.copyOf(SplitProcessors(processors, 1));
+        errorProcessor = processors.get(ErrorProcessor.class.getSimpleName());
+        if (errorProcessor == null) {
             throw new RuntimeException("ErrorProcessor must be registered in processors");
-            //todo проверить что запишет в лог при отсутствии регистрации ErrorProcessor
         }
     }
 
     private static RequestProcessor getErrorProcessor() {
-        return processors.get(ErrorProcessor.class.getSimpleName());
+        return errorProcessor;
     }
 
     private static RequestProcessor getProcessor(String routingKey) {
@@ -43,28 +47,39 @@ public class RequestRouter {
         result.put(ErrorProcessor.class.getSimpleName(), new ErrorProcessor());
         result.put("GET /visits", new GetVisitsProcessor(repository));
         result.put("POST /visits", new CreateVisitProcessor(repository));
+        result.put("DELETE /visits", new DeleteVisitProcessor(repository));
+        result.put("PUT /visits", new PutVisitProcessor(repository));
 
         return result;
     }
 
-    /**
-     * The first MAX_HTTP_HEADER_SIZE_KB of data from the client are read and parsed,
-     * the rest of the client data is read and processed at the discretion of the processor
-     *
-     * @param context
-     * @param clientChannel
-     * @param inputByteBuffer
-     * @throws Exception
-     */
+    private Set<String> SplitProcessors(Map<String, RequestProcessor> processors, int index) {
+        Set<String> result = new HashSet<>();
+        for (String key : processors.keySet()) {
+            String[] keySplitted = key.split(" ", 2);
+            if (keySplitted.length > index)
+                result.add(keySplitted[index]);
+        }
+        return result;
+    }
+
     public void route(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws Exception {
         String routingKey = context.getRoutingKey();
         RequestProcessor requestProcessor = getProcessor(routingKey);
-        if (requestProcessor == null) {
-            String message = "No processor found by key\"" + routingKey + "\" during routing";
-            ErrorDto errorDto = ErrorFactory.notFoundErrorDto(message);
+
+        if ((requestProcessor == null || requestProcessor == getErrorProcessor()) &&
+                !methodHttp.contains(context.getMethod()) && paths.contains(context.getUri())) {
+            ErrorDto errorDto = ErrorFactory.createErrorDto(HttpErrorType.METHOD_NOT_ALLOWED,
+                    "METHOD NOT ALLOWED. Please use a different HTTP method for this paths");
             context.setErrorParsingResult(errorDto);
             requestProcessor = getErrorProcessor();
-            logger.error(message);
+
+        } else if (requestProcessor == null) {
+            requestProcessor = getErrorProcessor();
+            logger.warn("Processor not found by routingKey '{}', process processed by processor '{}'",
+                    routingKey, requestProcessor.getClass().getSimpleName());
+            ErrorDto errorDto = ErrorFactory.notFoundErrorDto("RESOURCE NOT FOUND");
+            context.setErrorParsingResult(errorDto);
         }
 
         try {
@@ -73,16 +88,11 @@ public class RequestRouter {
             logger.error(e.getMessage(), e);
             RequestProcessor errorProcessor = getErrorProcessor();
             ErrorDto errorDto;
-            HttpErrorType errorType;
-            String message;
             if (e instanceof AppException appException) {
-                errorType = appException.getErrorType();
-                message = appException.getMessage();
+                errorDto = ErrorFactory.createErrorDto(appException);
             } else {
-                errorType = HttpErrorType.INTERNAL_SERVER_ERROR;
-                message = e.getMessage();
+                errorDto = ErrorFactory.createErrorDto(HttpErrorType.INTERNAL_SERVER_ERROR, e.getMessage());
             }
-            errorDto = ErrorFactory.createErrorDto(errorType, message);
             context.setErrorParsingResult(errorDto);
             errorProcessor.execute(context, clientChannel, inputByteBuffer);
         }

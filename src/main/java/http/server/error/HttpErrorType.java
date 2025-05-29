@@ -4,11 +4,12 @@ public enum HttpErrorType {
     BAD_REQUEST(400, "BAD_REQUEST") {
         @Override
         public String customErrorCode(String errorCode) {
-            return errorCode;
+            return (errorCode == null || errorCode.isBlank()) ? getErrorCode() : errorCode;
         }
     },
     INTERNAL_SERVER_ERROR(500, "INTERNAL_SERVER_ERROR"),
-    NOT_FOUND(404, "NOT_FOUND");
+    NOT_FOUND(404, "NOT_FOUND"),
+    METHOD_NOT_ALLOWED(405, "METHOD_NOT_ALLOWED");
 
     private final int statusCode;
     private final String errorCode;

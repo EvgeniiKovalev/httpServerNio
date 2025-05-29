@@ -1,6 +1,10 @@
 package http.server;
 
 import http.server.application.Repository;
+import http.server.error.ErrorDto;
+import http.server.error.ErrorFactory;
+import http.server.error.HttpErrorType;
+import http.server.parser.ParsingResult;
 import http.server.parser.RequestParser;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,41 +22,34 @@ import java.util.Iterator;
 public class HttpServer implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(HttpServer.class);
     private static RequestRouter requestRouter;
-    public final int BUFFER_SIZE_KB;
-    public final int MAX_HTTP_HEADER_SIZE_KB;
-    public final int MAX_HTTP_REQUEST_SIZE_MB;
-    public final int MAX_HTTP_ANSWER_SIZE_MB;
-    public final int MAX_EMPTY_READ;
     public final String DATABASE_URL;
     public final String USER_DATABASE;
     public final String PASSWORD_DATABASE;
-    private final int PORT;
     private final String HOST;
+    private final int PORT;
     private final int MAX_CONNECTIONS;
-    //    private final Map<SocketChannel, Integer> emptyReadCounters = new WeakHashMap<>(); //ConcurrentHashMap
-    private final ServerConfig serverConfig;
+    public final int BUFFER_SIZE;
+    public final int MAX_HTTP_REQUEST_SIZE;
+    public final int MAX_HTTP_ANSWER_SIZE;
     private ServerSocketChannel serverChannel;
     private Selector selector;
     private volatile boolean isRunning;
 
 
     public HttpServer(ServerConfig serverConfig) {
-        this.serverConfig = serverConfig;
         if (serverConfig == null) {
             throw new IllegalArgumentException("serverConfig must not be null");
         }
         ServerValidator.validate(serverConfig);
-        HOST = serverConfig.getHost();
-        PORT = Integer.parseInt(serverConfig.getPort());
         DATABASE_URL = serverConfig.getDatabaseUrl();
         USER_DATABASE = serverConfig.getUserDatabase();
         PASSWORD_DATABASE = serverConfig.getPasswordDatabase();
+        HOST = serverConfig.getHost();
+        PORT = Integer.parseInt(serverConfig.getPort());
         MAX_CONNECTIONS = Integer.parseInt(serverConfig.getMaxConnections());
-        MAX_HTTP_HEADER_SIZE_KB = Integer.parseInt(serverConfig.getMaxHttpHeaderSizeKb());
-        BUFFER_SIZE_KB = Integer.parseInt(serverConfig.getBufferSizeKb());
-        MAX_HTTP_REQUEST_SIZE_MB = Integer.parseInt(serverConfig.getMaxHttpRequestSizeMb());
-        MAX_HTTP_ANSWER_SIZE_MB = Integer.parseInt(serverConfig.getMaxHttpAnswerSizeMb());
-        MAX_EMPTY_READ = Integer.parseInt(serverConfig.getMaxEmptyRead());
+        BUFFER_SIZE = Integer.parseInt(serverConfig.getBufferSize());
+        MAX_HTTP_REQUEST_SIZE = Integer.parseInt(serverConfig.getMaxHttpRequestSize());
+        MAX_HTTP_ANSWER_SIZE = Integer.parseInt(serverConfig.getMaxHttpAnswerSize());
 
         Repository repository = new Repository(DATABASE_URL, USER_DATABASE, PASSWORD_DATABASE);
         requestRouter = new RequestRouter(repository);
@@ -76,7 +73,7 @@ public class HttpServer implements AutoCloseable {
         logger.trace("run");
         initialize();
         while (isRunning && serverChannel.isOpen()) {
-            int readyChannels = selector.selectNow(); // blocking
+            int readyChannels = selector.select(); // blocking
             if (readyChannels == 0) {
                 continue;
             }
@@ -123,11 +120,6 @@ public class HttpServer implements AutoCloseable {
 
     private void closeConnection(SocketChannel clientChannel, SelectionKey key) {
         try {
-            if (clientChannel != null && clientChannel.isOpen()) clientChannel.close();
-        } catch (IOException e) {
-            logger.error("error closing connection: {}", e.getMessage(), e);
-        } finally {
-//            emptyReadCounters.remove(clientChannel);
             if (key != null && key.isValid()) {
                 try {
                     Object attachment = key.attachment();
@@ -140,41 +132,38 @@ public class HttpServer implements AutoCloseable {
                 key.attach(null);
                 key.cancel();
             }
+            if (clientChannel != null && clientChannel.isOpen()) clientChannel.close();
+        } catch (IOException e) {
+            logger.error("error closing connection: {}", e.getMessage(), e);
+//        } finally {
         }
     }
 
-    /**
-     * processing a connection in which the clientChannel does not send data
-     */
-//    private void handleEmptyRead(SocketChannel clientChannel, SelectionKey key) {
-//        int count = emptyReadCounters.getOrDefault(clientChannel, 0) + 1;
-//        if (count > MAX_EMPTY_READ) {
-//            logger.warn("Closing idle connection: {}", clientChannel);
-//            closeConnection(clientChannel, key);
-//            return;
-//        }
-//        emptyReadCounters.put(clientChannel, count);
-//        logger.debug("Empty read #{} from {}", count, clientChannel.socket().getRemoteSocketAddress());
-//    }
     private void read(SelectionKey key) {
         logger.trace("read");
         if (key == null || !key.isValid()) return;
         SocketChannel clientChannel = (SocketChannel) key.channel();
         try {
-            ByteBuffer inputByteBuffer = ByteBuffer.allocate(MAX_HTTP_HEADER_SIZE_KB * 1024);
+            ByteBuffer inputByteBuffer = ByteBuffer.allocate(BUFFER_SIZE);
 
             int bytesRead = clientChannel.read(inputByteBuffer);
             if (bytesRead > 0) {
                 Context context = new Context();
                 context.setInputBuffer(inputByteBuffer);
-                context.setLengthInputBuffer(bytesRead);
-                context.setParsingResult(RequestParser.parseToResult(inputByteBuffer));
+                context.incLengthRequest(bytesRead);
+                if (context.getLengthRequest() <= MAX_HTTP_REQUEST_SIZE) {
+                    context.setParsingResult(RequestParser.parseToResult(inputByteBuffer));
+                } else {
+                    ErrorDto errorDto = ErrorFactory.createErrorDto(
+                            HttpErrorType.BAD_REQUEST,
+                            "ERROR_REQUEST_TOO_LARGE",
+                            "Request size exceeds allowed limit (" + MAX_HTTP_REQUEST_SIZE + " bytes)"
+                    );
+                    context.setParsingResult(ParsingResult.error(errorDto));
+                }
                 requestRouter.route(context, clientChannel, inputByteBuffer);
                 key.attach(context);
                 key.interestOps(SelectionKey.OP_WRITE);
-
-//            } else if (bytesRead == 0) {
-//                handleEmptyRead(clientChannel, key);
             } else if (bytesRead == -1) {
                 closeConnection(clientChannel, key);
                 logger.trace("Connection closed by clientChannel");
@@ -187,20 +176,6 @@ public class HttpServer implements AutoCloseable {
             closeConnection(clientChannel, key);
         }
     }
-
-//    private void processClientData(SelectionKey key, ByteBuffer buffer, int bytesRead) {
-//        //todo реализовать через интерфейс, чтобы можно было в зависимости от routingKey полиморфно по интерфейсу вызывать
-//        //todo нужный метод (это слой бизнес логики)
-//        logger.debug("processClientData");
-//        buffer.flip();
-//        try {
-//            String message = StandardCharsets.US_ASCII.decode(buffer).toString();
-//            logger.debug("Received bytes: {}, message: {}", bytesRead, message.trim());
-//            key.interestOps(SelectionKey.OP_WRITE);
-//        } finally {
-//            buffer.clear();
-//        }
-//    }
 
     private void write(SelectionKey key) {
         logger.trace("write");
