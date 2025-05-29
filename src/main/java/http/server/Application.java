@@ -15,13 +15,13 @@ public class Application {
         ServerConfig serverConfig = null;
         try {
             serverConfig = new ServerConfig();
-            logger.debug("Server configuration loaded successfully");
+            logger.debug("server configuration loaded successfully");
         } catch (Exception e) {
             logger.fatal("Failed to load server configuration: {}", e.getMessage(), e);
             System.exit(EXIT_WITH_ERROR_READ_CONFIG);
         }
 
-        try (HttpServer httpServer = new HttpServer(serverConfig)) {
+        try (var httpServer = new HttpServer(serverConfig)) {
             logger.debug("HTTP server created successfully");
             httpServer.run();
         } catch (Exception e) {

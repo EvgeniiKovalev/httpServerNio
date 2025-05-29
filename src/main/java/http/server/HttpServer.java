@@ -18,9 +18,6 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class HttpServer implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(HttpServer.class);
@@ -36,9 +33,7 @@ public class HttpServer implements AutoCloseable {
     public final int MAX_HTTP_ANSWER_SIZE;
     private ServerSocketChannel serverChannel;
     private Selector selector;
-    private final ExecutorService pool;
     private volatile boolean isRunning;
-    private final ConcurrentHashMap<SelectionKey, Boolean> activeKeys = new ConcurrentHashMap<>();
 
 
     public HttpServer(ServerConfig serverConfig) {
@@ -58,7 +53,6 @@ public class HttpServer implements AutoCloseable {
 
         Repository repository = new Repository(DATABASE_URL, USER_DATABASE, PASSWORD_DATABASE);
         requestRouter = new RequestRouter(repository);
-        this.pool = Executors.newFixedThreadPool(NUM_THEAD);
     }
 
 
@@ -72,41 +66,34 @@ public class HttpServer implements AutoCloseable {
         selector = Selector.open();
         serverChannel.register(selector, SelectionKey.OP_ACCEPT);
         this.isRunning = true;
-        logger.info("Server started, host: {},  порт: {}", HOST, PORT);
+        logger.info("server started, host: {},  порт: {}", HOST, PORT);
     }
 
     public void run() throws Exception {
         logger.trace("run");
         initialize();
-        try {
-            while (isRunning && serverChannel.isOpen()) {
-                int readyChannels = selector.select(); // blocking
-                if (readyChannels == 0) {
-                    continue;
-                }
-                logger.trace("readyChannels: {} key(s)", readyChannels);
-                Iterator<SelectionKey> keysIterator = selector.selectedKeys().iterator();
-                while (keysIterator.hasNext()) {
-                    SelectionKey key = keysIterator.next();
-                    keysIterator.remove();
-                    if (key.isAcceptable()) {
-                        accept(selector, serverChannel, key);
-                    } else if (key.isReadable()) {
-                        pool.submit(() -> read(key));
-                    } else if (key.isWritable()) {
-                        pool.submit(() -> write(key));
-                    } else {
-                        logger.trace("Unknown type key: {}", key.toString());
-                    }
-                    //logger.trace("last line of the keysIterator loop");
+        while (isRunning && serverChannel.isOpen()) {
+            int readyChannels = selector.select(); // blocking
+            if (readyChannels == 0) {
+                continue;
+            }
+            logger.trace("readyChannels: {} key(s)", readyChannels);
+            Iterator<SelectionKey> keysIterator = selector.selectedKeys().iterator();
+            while (keysIterator.hasNext()) {
+                SelectionKey key = keysIterator.next();
+                keysIterator.remove();
+                if (key.isAcceptable()) {
+                    accept(selector, serverChannel, key);
+                } else if (key.isReadable()) {
+                    read(key);
+                } else if (key.isWritable()) {
+                    write(key);
+                } else {
+                    logger.trace("Unknown type key: {}", key.toString());
                 }
             }
-        } finally {
-            if (!pool.isShutdown()) {
-                pool.shutdown();
-            }
-            logger.info("Server stopped");
         }
+        logger.info("server stopped");
     }
 
     private void accept(Selector selector, ServerSocketChannel serverChannel, SelectionKey key) {
@@ -132,100 +119,81 @@ public class HttpServer implements AutoCloseable {
 
     private void closeConnection(SocketChannel clientChannel, SelectionKey key) {
         try {
-            if (key != null) {
-                synchronized (key) {
-                    if (key.isValid()) {
-                        try {
-                            Object attachment = key.attachment();
-                            if (attachment instanceof AutoCloseable) {
-                                ((AutoCloseable) attachment).close();
-                            }
-                        } catch (Exception e) {
-                            logger.error("Error closing attachment: {}", e.getMessage(), e);
-                        }
-                        key.attach(null);
-                        key.cancel();
+            if (key != null && key.isValid()) {
+                try {
+                    Object attachment = key.attachment();
+                    if (attachment instanceof AutoCloseable) {
+                        ((AutoCloseable) attachment).close();
                     }
+                } catch (Exception e) {
+                    logger.error("Error closing attachment: {}", e.getMessage(), e);
                 }
-                if (clientChannel != null && clientChannel.isOpen()) clientChannel.close();
+                key.attach(null);
+                key.cancel();
             }
+            if (clientChannel != null && clientChannel.isOpen()) clientChannel.close();
         } catch (IOException e) {
             logger.error("error closing connection: {}", e.getMessage(), e);
-//        } finally {
         }
     }
 
     private void read(SelectionKey key) {
-        synchronized (key) {
-            if (key == null || !key.isValid()) return;
-            if (activeKeys.putIfAbsent(key, true) != null) return;
-        }
+        logger.trace("read");
+        if (key == null || !key.isValid()) return;
+
+        SocketChannel clientChannel = (SocketChannel) key.channel();
         try {
-            logger.trace("read");
+            ByteBuffer inputByteBuffer = ByteBuffer.allocate(BUFFER_SIZE);
 
-            SocketChannel clientChannel = (SocketChannel) key.channel();
-            try {
-                ByteBuffer inputByteBuffer = ByteBuffer.allocate(BUFFER_SIZE);
-
-                int bytesRead = clientChannel.read(inputByteBuffer);
-                if (bytesRead > 0) {
-                    Context context = new Context();
-                    context.setInputBuffer(inputByteBuffer);
-                    context.incLengthRequest(bytesRead);
-                    if (context.getLengthRequest() <= MAX_HTTP_REQUEST_SIZE) {
-                        context.setParsingResult(RequestParser.parseToResult(inputByteBuffer));
-                    } else {
-                        ErrorDto errorDto = ErrorFactory.createErrorDto(
-                                HttpErrorType.BAD_REQUEST,
-                                "ERROR_REQUEST_TOO_LARGE",
-                                "Request size exceeds allowed limit (" + MAX_HTTP_REQUEST_SIZE + " bytes)"
-                        );
-                        context.setParsingResult(ParsingResult.error(errorDto));
-                    }
-                    requestRouter.route(context, clientChannel, inputByteBuffer);
-                    synchronized (key) {
-                        key.attach(context);
-                        key.interestOps(SelectionKey.OP_WRITE);
-                        selector.wakeup();
-                    }
-                } else if (bytesRead == -1) {
-                    closeConnection(clientChannel, key);
-                    logger.trace("Connection closed by clientChannel");
+            int bytesRead = clientChannel.read(inputByteBuffer);
+            if (bytesRead > 0) {
+                Context context = new Context();
+                context.setInputBuffer(inputByteBuffer);
+                context.incLengthRequest(bytesRead);
+                if (context.getLengthRequest() <= MAX_HTTP_REQUEST_SIZE) {
+                    context.setParsingResult(RequestParser.parseToResult(inputByteBuffer));
                 } else {
-                    closeConnection(clientChannel, key);
-                    logger.warn("Invalid bytesRead: {}", bytesRead);
+                    ErrorDto errorDto = ErrorFactory.createErrorDto(
+                            HttpErrorType.BAD_REQUEST,
+                            "ERROR_REQUEST_TOO_LARGE",
+                            "Request size exceeds allowed limit (" + MAX_HTTP_REQUEST_SIZE + " bytes)"
+                    );
+                    context.setParsingResult(ParsingResult.error(errorDto));
                 }
-            } catch (Exception e) {
-                logger.error("Read error: {}", e.getMessage(), e);
+                requestRouter.route(context, clientChannel, inputByteBuffer);
+                key.attach(context);
+                key.interestOps(SelectionKey.OP_WRITE);
+                selector.wakeup();
+            } else if (bytesRead == -1) {
                 closeConnection(clientChannel, key);
+                logger.trace("Connection closed by clientChannel");
+            } else {
+                closeConnection(clientChannel, key);
+                logger.warn("Invalid bytesRead: {}", bytesRead);
             }
-        } finally {
-            activeKeys.remove(key);
+        } catch (Exception e) {
+            logger.error("Read error: {}", e.getMessage(), e);
+            closeConnection(clientChannel, key);
         }
     }
 
     private void write(SelectionKey key) {
+        logger.trace("write");
         if (key == null || !key.isValid()) return;
-        if (activeKeys.putIfAbsent(key, true) != null) return;
+        SocketChannel clientChannel = (SocketChannel) key.channel();
+        if (!clientChannel.isOpen()) {
+            closeConnection(clientChannel, key);
+            return;
+        }
         try {
-            logger.trace("write");
-            SocketChannel clientChannel = (SocketChannel) key.channel();
-            if (!clientChannel.isOpen()) {
-                closeConnection(clientChannel, key);
-                return;
-            }
-            try {
-                Context context = (Context) key.attachment();
-                RequestAnswer requestAnswer = context.getRequestAnswer();
-                ByteBuffer outputByteBuffer = requestAnswer.getByteBuffer();
-                clientChannel.write(outputByteBuffer);
-            } catch (Exception e) {
-                logger.error("Write outer error: {}", e.getMessage(), e);
-            } finally {
-                closeConnection(clientChannel, key);
-            }
+            Context context = (Context) key.attachment();
+            RequestAnswer requestAnswer = context.getRequestAnswer();
+            ByteBuffer outputByteBuffer = requestAnswer.getByteBuffer();
+            clientChannel.write(outputByteBuffer);
+        } catch (Exception e) {
+            logger.error("Write outer error: {}", e.getMessage(), e);
         } finally {
-            activeKeys.remove(key);
+            closeConnection(clientChannel, key);
         }
     }
 
