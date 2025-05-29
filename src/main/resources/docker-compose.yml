@@ -1,0 +1,11 @@
+version: "3.8"
+services:
+  java-basic:
+    image: postgres
+    container_name: postgres_20250529
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=learn
