@@ -1,5 +1,6 @@
 package http.server.processors;
 
+import http.server.BuilderSimpleAnswer;
 import http.server.Context;
 import http.server.RequestAnswer;
 import http.server.error.AppException;
@@ -25,8 +26,15 @@ public class ErrorProcessor implements RequestProcessor {
                 right -> ErrorFactory.internalErrorDto("Unexpected Right value"));
 
         RequestAnswer.answer(context,
-                String.format("HTTP/1.1 %d %s\r\nContent-Type: text/html\r\n\r\n<html><body><h1>%s</h1></body></html>",
-                        errorDto.getStatusCode(), errorDto.getErrorCode(), errorDto.getDescription())
-                );
+                BuilderSimpleAnswer.headerBody(
+                        errorDto.getStatusCode(),
+                        errorDto.getErrorCode(),
+                        errorDto.getDescription(),
+                        "text/html")
+        );
+//        RequestAnswer.answer(context,
+//                String.format("HTTP/1.1 %d %s\r\nContent-Type: text/html\r\n\r\n<html><body><h1>%s</h1></body></html>",
+//                        errorDto.getStatusCode(), errorDto.getErrorCode(), errorDto.getDescription())
+//                );
     }
 }
