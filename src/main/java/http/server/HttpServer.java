@@ -69,7 +69,6 @@ public class HttpServer implements AutoCloseable {
         serverChannel.register(selector, SelectionKey.OP_ACCEPT);
         this.isRunning = true;
         logger.info("server started, host: {},  порт: {}, макс. кол-во соединений: {}", HOST, PORT, MAX_CONNECTIONS);
-        this.pool = Executors.newFixedThreadPool(10);
     }
 
     public void run() throws Exception {
