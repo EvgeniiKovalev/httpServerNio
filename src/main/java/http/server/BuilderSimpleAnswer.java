@@ -9,7 +9,7 @@ public class BuilderSimpleAnswer {
     public static String headerBody(int statusCode, String errorCode, String body, String contentType) {
         return String.format("%s%s",
                 header(statusCode, errorCode, contentType),
-                (body == null ?  "" :
+                (body == null ? "" :
                         (contentType.equals("text/html") || contentType == null) ? String.format("<html><body><h1>%s</h1></body></html>", body) : body));
     }
 
