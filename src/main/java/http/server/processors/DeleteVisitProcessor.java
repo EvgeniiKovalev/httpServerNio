@@ -1,5 +1,6 @@
 package http.server.processors;
 
+import http.server.BuilderSimpleAnswer;
 import http.server.Context;
 import http.server.RequestAnswer;
 import http.server.application.Repository;
@@ -25,30 +26,28 @@ public class DeleteVisitProcessor implements RequestProcessor{
     @Override
     public void execute(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws AppException {
         RequestDto requestDto = context.getParsingResult().getValue().get();
-        String responce;
         if (requestDto.getParameter("id") == null) {
             throw ErrorFactory.badRequest("No deleted Visit id specified");
         }
 
+        int statusCode = 204;
         int id = 0;
         try {
             id = Integer.parseInt(requestDto.getParameter("id"));
             if (repository.deleteVisitById(id)) {
                 logger.info("Deleted Visit with id = {}", id);
-                responce = "HTTP/1.1 204 No Content\r\nContent-Type: text/html\r\n\r\n";
             } else {
                 logger.info("No deletion visit found with the specified id = {}", id);
-                responce = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\n\r\n";
+                statusCode = 404;
             }
-            RequestAnswer.answer(context, responce);
+            RequestAnswer.answer(context, BuilderSimpleAnswer.header(statusCode, null, "text/html"));
+
         } catch (NumberFormatException e) {
-            logger.error(e.getMessage(), e);
             throw ErrorFactory.badRequest(
                     String.format("The value of the 'id' parameter is not a number:'%s'",
                             requestDto.getParameter("id")),
                     "INCORRECT_REQUEST_PARAMETER");
         } catch (SQLException e) {
-            logger.error(e.getMessage(), e);
             throw ErrorFactory.internalServerError("Internal server error deleting for Visit with id = " + id);
         }
     }

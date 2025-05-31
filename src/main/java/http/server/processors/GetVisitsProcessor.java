@@ -1,5 +1,6 @@
 package http.server.processors;
 
+import http.server.BuilderSimpleAnswer;
 import http.server.Context;
 import http.server.RequestAnswer;
 import http.server.application.Repository;
@@ -28,7 +29,7 @@ public class GetVisitsProcessor implements RequestProcessor {
     public void execute(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws AppException {
         logger.trace("GetVisitsProcessor start");
         RequestDto requestDto = context.getParsingResult().getValue().get();
-        StringBuilder responce = new StringBuilder("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n");
+        StringBuilder responce = new StringBuilder(BuilderSimpleAnswer.header(200,null,"application/json"));
 
         if (requestDto.getParameter("id") == null
                 && !requestDto.getParametersIterator().hasNext()) //protection against control characters in parameters?? and so on.
@@ -48,11 +49,10 @@ public class GetVisitsProcessor implements RequestProcessor {
         try {
             visits = repository.getAllVisits();
         } catch (SQLException e) {
-            logger.error(e.getMessage(), e);
             throw ErrorFactory.internalServerError("Internal server error get all Visits");
         }
         String json = Repository.getGson().toJson(visits);
-        logger.trace(json);
+//        logger.trace(json);
         responce.append(json);
     }
 
@@ -61,7 +61,6 @@ public class GetVisitsProcessor implements RequestProcessor {
         try {
             id = Integer.parseInt(requestDto.getParameter("id"));
         } catch (NumberFormatException e) {
-            logger.error(e.getMessage(), e);
             throw ErrorFactory.badRequest(String.format("The value of the 'id' parameter is not a number:'%s'",
                     requestDto.getParameter("id")), "INCORRECT_REQUEST_PARAMETER");
         }
@@ -70,12 +69,11 @@ public class GetVisitsProcessor implements RequestProcessor {
         try {
             visit = repository.getVisitById(id);
         } catch (SQLException e) {
-            logger.error(e.getMessage(), e);
             throw ErrorFactory.internalServerError("Internal server error searching for Visit with id = " + id);
         }
         if (visit == null) throw ErrorFactory.notFoundError("Visit not found with id: " + id);
         String json = Repository.getGson().toJson(visit);
-        logger.trace(json);
+//        logger.trace(json);
         responce.append(json);
     }
 }

@@ -20,13 +20,11 @@ public class RequestRouter {
     private static final Logger logger = LogManager.getLogger(RequestRouter.class);
     private static Map<String, RequestProcessor> processors;
     private static RequestProcessor errorProcessor;
-    private static Set<String> methodHttp;
     private static Set<String> paths;
 
 
     public RequestRouter(Repository repository) {
         processors = Map.copyOf(initProcessors(repository));
-        methodHttp = Set.copyOf(splitProcessors(processors, 0));
         paths = Set.copyOf(splitProcessors(processors, 1));
         errorProcessor = processors.get(ErrorProcessor.class.getSimpleName());
         if (errorProcessor == null) {
@@ -67,8 +65,7 @@ public class RequestRouter {
         String routingKey = context.getRoutingKey();
         RequestProcessor requestProcessor = getProcessor(routingKey);
 
-        if ((requestProcessor == null || requestProcessor == getErrorProcessor()) &&
-                !methodHttp.contains(context.getMethod()) && paths.contains(context.getUri())) {
+        if ((requestProcessor == null || requestProcessor == getErrorProcessor()) && paths.contains(context.getUri())) {
             ErrorDto errorDto = ErrorFactory.createErrorDto(HttpErrorType.METHOD_NOT_ALLOWED,
                     "METHOD NOT ALLOWED. Please use a different HTTP method for this paths");
             context.setErrorParsingResult(errorDto);
