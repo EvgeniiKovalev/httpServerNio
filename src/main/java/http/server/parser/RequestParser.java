@@ -44,7 +44,7 @@ public class RequestParser {
         byte foundByte = 0;
 
         while (inputByteBuffer.hasRemaining()) {
-            foundByte = parsePart(inputByteBuffer, END_PARAM_NAME, stringBuilder, SET_EXC_FOR_PARAM, "INCORRECT_REQUEST_PARAMETER");
+            foundByte = parsePart(inputByteBuffer, END_PARAM_NAME, stringBuilder, SET_EXC_FOR_PARAM, "INCORRECT_REQUEST_PARAMETER", false);
             if (foundByte != EQUALITY) {
                 throw ErrorFactory.badRequest("Parameter name not specified in request URI",
                         "INCORRECT_REQUEST_PARAMETER");
@@ -107,7 +107,7 @@ public class RequestParser {
     private static void parseFirstLine(ByteBuffer inputByteBuffer, StringBuilder stringBuilder, RequestDto requestDto) throws AppException {
 
         // http method
-        byte foundByte = parsePart(inputByteBuffer, END_LINE_WITH_SPACE, stringBuilder);
+        byte foundByte = parsePart(inputByteBuffer, END_LINE_WITH_SPACE, stringBuilder, true);
         requestDto.setMethodRaw(stringBuilder.toString());
 
         if (END_LINE_WITH_ZERO.contains(foundByte)) {
@@ -115,7 +115,7 @@ public class RequestParser {
         }
 
         // uri
-        foundByte = parsePart(inputByteBuffer, SET_FOR_URI, stringBuilder);
+        foundByte = parsePart(inputByteBuffer, SET_FOR_URI, stringBuilder, false);
         if (END_LINE_WITH_ZERO.contains(foundByte)) {
             throw ErrorFactory.badRequest("HTTP version not specified");
         }
@@ -148,7 +148,7 @@ public class RequestParser {
             }
         }
         // http version
-        parsePart(inputByteBuffer, END_LINE, stringBuilder);
+        parsePart(inputByteBuffer, END_LINE, stringBuilder, false);
         if (stringBuilder.isEmpty()) {
             throw ErrorFactory.badRequest("HTTP request cannot be empty");
         }
@@ -161,14 +161,36 @@ public class RequestParser {
     }
 
     private static byte parsePart(ByteBuffer inputByteBuffer, Set<Byte> stopChars, StringBuilder stringBuilder) throws AppException {
-        return parsePart(inputByteBuffer, stopChars, stringBuilder, null, null);
+        return parsePart(inputByteBuffer, stopChars, stringBuilder, null, null, false);
     }
 
-    private static byte parsePart(ByteBuffer inputByteBuffer, Set<Byte> stopChars, StringBuilder stringBuilder, Set<Byte> exceptionChar, String desc) throws AppException {
+    private static byte parsePart(ByteBuffer inputByteBuffer,
+                                  Set<Byte> stopChars,
+                                  StringBuilder stringBuilder,
+                                  boolean onlyAscii
+    ) throws AppException {
+        return parsePart(inputByteBuffer, stopChars, stringBuilder, null, null, onlyAscii);
+    }
+
+
+    private static byte parsePart(ByteBuffer inputByteBuffer,
+                                  Set<Byte> stopChars,
+                                  StringBuilder stringBuilder,
+                                  Set<Byte> exceptionChar,
+                                  String desc,
+                                  boolean onlyAscii
+    ) throws AppException {
         stringBuilder.setLength(0);
         int countQuotes = 0;
         while (inputByteBuffer.hasRemaining()) {
             byte code_character = inputByteBuffer.get();
+
+            if (onlyAscii && (code_character < 32 || code_character > 126)) {
+                throw ErrorFactory.badRequest(
+                        "Non-ASCII character detected: 0x" + Integer.toHexString(code_character & 0xFF),
+                        "INVALID_CHARACTER"
+                );
+            }
 
             if (exceptionChar != null ) {
                 if (code_character == QUOTES) countQuotes++;

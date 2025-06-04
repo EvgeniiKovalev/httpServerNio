@@ -13,11 +13,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.util.Iterator;
+import java.util.concurrent.CountDownLatch;
 
 public class HttpServer implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(HttpServer.class);
@@ -31,10 +29,10 @@ public class HttpServer implements AutoCloseable {
     public final int BUFFER_SIZE;
     public final int MAX_HTTP_REQUEST_SIZE;
     public final int MAX_HTTP_ANSWER_SIZE;
-    private ServerSocketChannel serverChannel;
-    private Selector selector;
-    private volatile boolean isRunning;
 
+    private ServerSocketChannel serverChannel;
+    private final Selector[] workerSelectors = new Selector[4];
+    private volatile boolean isRunning;
 
     public HttpServer(ServerConfig serverConfig) {
         if (serverConfig == null) {
@@ -55,200 +53,195 @@ public class HttpServer implements AutoCloseable {
         requestRouter = new RequestRouter(repository);
     }
 
-
     private void initialize() throws IOException {
-        logger.trace("initialize");
+        logger.trace("Initializing server");
         serverChannel = ServerSocketChannel.open();
         serverChannel.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
         serverChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-        serverChannel.socket().bind(new InetSocketAddress(HOST, PORT));
+        serverChannel.bind(new InetSocketAddress(HOST, PORT));
         serverChannel.configureBlocking(false);
-        selector = Selector.open();
-        serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+
         this.isRunning = true;
-        logger.info("server started, host: {},  порт: {}, макс. кол-во соединений: {}", HOST, PORT, MAX_CONNECTIONS);
+        logger.info("Server started on {}:{} (max connections: {})", HOST, PORT, MAX_CONNECTIONS);
     }
 
     public void run() throws Exception {
-        logger.trace("run");
         initialize();
-        while (isRunning && serverChannel.isOpen()) {
-            int readyChannels = selector.select(); // blocking
-            if (readyChannels == 0) {
-                continue;
-            }
-            logger.trace("readyChannels: {} key(s)", readyChannels);
-            var selectedKeys = selector.selectedKeys();
-            Iterator<SelectionKey> keysIterator = selectedKeys.iterator();
-            while (keysIterator.hasNext()) {
-                SelectionKey key = keysIterator.next();
-                keysIterator.remove();
+        CountDownLatch latch = new CountDownLatch(workerSelectors.length);
+        for (int i = 0; i < workerSelectors.length; i++) {
+            workerSelectors[i] = Selector.open();
+            serverChannel.register(workerSelectors[i], SelectionKey.OP_ACCEPT);
 
-                if (!key.isValid()) continue;
-                int readyOps = key.readyOps();
-                switch (readyOps) {
-                    case SelectionKey.OP_ACCEPT -> accept(selector, serverChannel, key);
-                    case SelectionKey.OP_READ -> read(key);
-                    case SelectionKey.OP_WRITE -> write(key);
-                    default -> logger.warn("Unknown type readyOps {}, key : {}", readyOps, key);
+            int workerId = i;
+            Thread.startVirtualThread(() -> {
+                try {
+                    while (isRunning) {
+                        workerSelectors[workerId].select();
+                        Iterator<SelectionKey> keys = workerSelectors[workerId].selectedKeys().iterator();
+
+                        while (keys.hasNext()) {
+                            SelectionKey key = keys.next();
+                            keys.remove();
+
+                            try {
+                                if (key.isAcceptable()) {
+                                    accept(key);
+                                } else if (key.isReadable()) {
+                                    read(key);
+                                } else if (key.isWritable()) {
+                                    write(key);
+                                }
+                            } catch (Exception e) {
+                                handleOperationError(e, key);
+                            }
+                        }
+                    }
+                } catch (IOException e) {
+                    handleNetworkError(e, "Worker " + workerId);
+                } finally {
+                    latch.countDown();
                 }
-            }
-            selectedKeys.clear();
+            });
         }
-        logger.info("server stopped");
+        latch.await();
     }
 
-    private void accept(Selector selector, ServerSocketChannel serverChannel, SelectionKey key) {
-        logger.trace("accept");
+    private void accept(SelectionKey key) {
+        ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
         SocketChannel clientChannel = null;
+
         try {
             clientChannel = serverChannel.accept();
-            if (selector.keys().size() >= MAX_CONNECTIONS) {
-                logger.warn("Max connections reached (active connection={}, MAX_CONNECTIONS = {}), " +
-                        "rejecting new connection", selector.keys().size(), MAX_CONNECTIONS);
-                clientChannel.close();
-                return;
-            }
             if (clientChannel == null) return;
+
             clientChannel.configureBlocking(false);
-            clientChannel.register(selector, SelectionKey.OP_READ);
-            logger.trace("New clientChannel connected: {}", clientChannel.getRemoteAddress());
+            clientChannel.register(key.selector(), SelectionKey.OP_READ);
+
         } catch (IOException e) {
-            logger.error("Accept error ", e);
-            closeConnection(clientChannel, key);
+            handleNetworkError(e, "Accept", clientChannel);
+            safeClose(clientChannel, null);
         }
     }
 
-    private void closeConnection(SocketChannel clientChannel, SelectionKey key) {
-        logger.trace("closeConnection {}", key);
-        try {
-            boolean ex;
-            ex = (key != null && key.isValid());
-            if (!ex) return;
-            try {
-                Object attachment = key.attachment();
-                if (attachment instanceof AutoCloseable) {
-                    ((AutoCloseable) attachment).close();
-                }
-            } catch (Exception e) {
-                logger.error("Error closing attachment", e);
+    private void read(SelectionKey key) throws Exception {
+        SocketChannel channel = (SocketChannel) key.channel();
+        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+        int bytesRead = channel.read(buffer);
+
+        if (bytesRead > 0) {
+            Context context = new Context();
+            context.setInputBuffer(buffer);
+            context.incLengthRequest(bytesRead);
+
+            if (context.getLengthRequest() > MAX_HTTP_REQUEST_SIZE) {
+                ErrorDto error = ErrorFactory.createErrorDto(
+                        HttpErrorType.BAD_REQUEST,
+                        "REQUEST_TOO_LARGE",
+                        "Max size: " + MAX_HTTP_REQUEST_SIZE
+                );
+                context.setParsingResult(ParsingResult.error(error));
+            } else {
+                context.setParsingResult(RequestParser.parseToResult(buffer));
             }
-            if (clientChannel != null && clientChannel.isOpen()) clientChannel.close();
+
+            requestRouter.route(context, channel, buffer);
+            key.attach(context);
+            key.interestOps(SelectionKey.OP_WRITE);
+            key.selector().wakeup();
+        } else if (bytesRead == -1) {
+            logger.debug("Client closed connection");
+            safeClose(channel, key);
+        }
+    }
+
+    private void write(SelectionKey key) throws Exception {
+        SocketChannel channel = (SocketChannel) key.channel();
+        Context context = (Context) key.attachment();
+        if (context == null) {
+            logger.warn("Missing context for write operation");
+            safeClose(channel, key);
+            return;
+        }
+
+        ByteBuffer out = context.getRequestAnswer().getByteBuffer();
+        channel.write(out);
+        safeClose(channel, key);
+    }
+
+    private void handleOperationError(Exception e, SelectionKey key) {
+        SocketChannel channel = (SocketChannel) key.channel();
+        if (e instanceof IOException) {
+            handleNetworkError((IOException) e, "IO operation", channel);
+        } else {
+            logger.error("Operation processing error", e);
+        }
+        safeClose(channel, key);
+    }
+
+    private void handleNetworkError(IOException e, String operation) {
+        handleNetworkError(e, operation, null);
+    }
+
+    private void handleNetworkError(IOException e, String operation, SocketChannel channel) {
+        String clientInfo = channel != null ? getRemoteAddress(channel) : "unknown";
+        if (e instanceof ClosedChannelException) {
+            logger.debug("{}: Connection closed by client ({})", operation, clientInfo);
+        } else {
+            logger.warn("{} failed for {}: {}", operation, clientInfo, e.getMessage());
+        }
+    }
+
+    private String getRemoteAddress(SocketChannel channel) {
+        try {
+            return channel.getRemoteAddress().toString();
         } catch (IOException e) {
-            logger.error("error closing connection ", e);
+            return "address_unavailable";
+        }
+    }
+
+    private void safeClose(SocketChannel channel, SelectionKey key) {
+        try {
+            if (channel != null && channel.isOpen()) {
+                channel.close();
+            }
+        } catch (IOException e) {
+            logger.debug("Channel close error", e);
+        } finally {
+            cleanupKey(key);
+        }
+    }
+
+    private void cleanupKey(SelectionKey key) {
+        if (key == null || !key.isValid()) return;
+
+        try {
+            Object attachment = key.attachment();
+            if (attachment instanceof AutoCloseable) {
+                ((AutoCloseable) attachment).close();
+            }
+        } catch (Exception e) {
+            logger.warn("Attachment cleanup failed", e);
         } finally {
             key.attach(null);
             key.cancel();
         }
     }
 
-    private void read(SelectionKey key) {
-        logger.trace("read");
-        if (key == null || !key.isValid()) return;
-        SocketChannel clientChannel = (SocketChannel) key.channel();
-        if (!clientChannel.isOpen()) return;
-
-        try {
-            ByteBuffer inputByteBuffer = ByteBuffer.allocate(BUFFER_SIZE);
-
-            int bytesRead = clientChannel.read(inputByteBuffer);
-            if (bytesRead > 0) {
-                Context context = new Context();
-                context.setInputBuffer(inputByteBuffer);
-                context.incLengthRequest(bytesRead);
-                ParsingResult parsingResult;
-                if (context.getLengthRequest() <= MAX_HTTP_REQUEST_SIZE) {
-                    parsingResult = RequestParser.parseToResult(inputByteBuffer);
-                } else {
-                    ErrorDto errorDto = ErrorFactory.createErrorDto(
-                            HttpErrorType.BAD_REQUEST,
-                            "ERROR_REQUEST_TOO_LARGE",
-                            "Request size exceeds allowed limit (" + MAX_HTTP_REQUEST_SIZE + " bytes)"
-                    );
-                    parsingResult = ParsingResult.error(errorDto);
-                }
-                context.setParsingResult(parsingResult);
-                requestRouter.route(context, clientChannel, inputByteBuffer);
-                if (context.getRequestAnswer() == null)
-                    logger.debug("------------------------------context.getRequestAnswer() == null");
-                key.attach(context);
-                key.interestOps(SelectionKey.OP_WRITE);
-                selector.wakeup();
-                if (key.attachment() == null)
-                    logger.debug("1 key.attachment() == null");
-            } else if (bytesRead == -1) {
-                closeConnection(clientChannel, key);
-                logger.trace("Connection closed by clientChannel");
-                if (key.attachment() == null) logger.debug(" 2 key.attachment() == null");
-            } else {
-                closeConnection(clientChannel, key);
-                logger.warn("Invalid bytesRead: {}", bytesRead);
-            }
-        } catch (Exception e) {
-            logger.error("Read error ", e);
-            closeConnection(clientChannel, key);
-        }
-    }
-
-    private void write(SelectionKey key) {
-        logger.trace("write");
-        if (key == null || !key.isValid()) return;
-        SocketChannel clientChannel = (SocketChannel) key.channel();
-        if (!clientChannel.isOpen()) {
-            closeConnection(clientChannel, key);
-            return;
-        }
-        try {
-            Context context = (Context) key.attachment();
-            if (context == null) {
-                logger.trace("context == null");
-                return;
-            }
-            RequestAnswer requestAnswer = context.getRequestAnswer();
-            ByteBuffer out = requestAnswer.getByteBuffer();
-
-            if ((key == null || !key.isValid() || !clientChannel.isOpen() || out.position() >= out.limit())) {
-                logger.trace("skipped ");
-                return;
-            }
-            clientChannel.write(out);
-        } catch (Exception e) {
-            logger.error("Write outer error", e);
-        } finally {
-            closeConnection(clientChannel, key);
-        }
-    }
-
     @Override
     public void close() throws IOException {
-        logger.trace("close");
-        IOException firstException = null;
+        isRunning = false;
 
-        if (selector != null) {
-            try {
+        for (Selector selector : workerSelectors) {
+            if (selector != null) {
                 selector.wakeup();
                 selector.close();
-            } catch (IOException e) {
-                firstException = e;
             }
         }
 
         if (serverChannel != null) {
-            try {
-                serverChannel.close();
-            } catch (IOException e) {
-                if (firstException != null) {
-                    firstException.addSuppressed(e);
-                } else {
-                    firstException = e;
-                }
-            }
+            serverChannel.close();
         }
 
-        if (firstException != null) {
-            logger.debug("Resources closed with errors");
-            throw firstException;
-        }
-        logger.debug("All resources closed successfully");
+        logger.info("Server stopped");
     }
 }
