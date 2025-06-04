@@ -27,7 +27,7 @@ public class GetVisitsProcessor implements RequestProcessor {
 
     @Override
     public void execute(Context context, SocketChannel clientChannel, ByteBuffer inputByteBuffer) throws AppException {
-        logger.trace("GetVisitsProcessor start");
+//        logger.trace("GetVisitsProcessor start");
         RequestDto requestDto = context.getParsingResult().getValue().get();
         StringBuilder responce = new StringBuilder(BuilderSimpleAnswer.header(200,null,"application/json"));
 
