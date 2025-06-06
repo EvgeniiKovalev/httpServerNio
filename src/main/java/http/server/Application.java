@@ -3,8 +3,6 @@ package http.server;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
-
 
 public class Application {
     private static final int EXIT_WITH_ERROR_READ_CONFIG = 1;
@@ -17,7 +15,7 @@ public class Application {
             serverConfig = new ServerConfig();
             logger.debug("server configuration loaded successfully");
         } catch (Exception e) {
-            logger.fatal("Failed to load server configuration: {}", e);
+            logger.fatal("Failed to load server configuration", e);
             System.exit(EXIT_WITH_ERROR_READ_CONFIG);
         }
 
