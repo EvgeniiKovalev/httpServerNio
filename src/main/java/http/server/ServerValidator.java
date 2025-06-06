@@ -31,18 +31,6 @@ public class ServerValidator {
             throw new IllegalArgumentException("Port must be > 0 and < 65535");
         }
 
-        String maxConnections = serverConfig.getMaxConnections();
-        if (maxConnections == null || maxConnections.trim().isEmpty()) {
-            throw new IllegalArgumentException("Max connections  must be not empty");
-        }
-        try {
-            int maxConnectionsInt = Integer.parseInt(maxConnections);
-            if (maxConnectionsInt <= 0 || maxConnectionsInt > 1000)
-                throw new IllegalArgumentException("Max connections must be > 0 and <= 100");
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Max connections must be > 0 and <= 100");
-        }
-
         String bufferSize = serverConfig.getBufferSize();
         if (bufferSize == null || bufferSize.trim().isEmpty()) {
             throw new IllegalArgumentException("Buffer size must be not empty");
@@ -77,6 +65,30 @@ public class ServerValidator {
                 throw new IllegalArgumentException("Max http answer size must be >= 1 and <= 8192");
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Max http answer size must be >= 1 and <= 8192");
+        }
+
+        String timeoutInputData = serverConfig.getTimeoutInputData();
+        if (timeoutInputData == null || timeoutInputData.trim().isEmpty()) {
+            throw new IllegalArgumentException("Timeout input data must be not empty");
+        }
+        try {
+            int timeoutInputDataInt = Integer.parseInt(timeoutInputData);
+            if (timeoutInputDataInt < 1000 || timeoutInputDataInt > 100000)
+                throw new IllegalArgumentException("Timeout input data must be >= 1000 and <= 100000");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Timeout input data must be >= 1000 and <= 100000");
+        }
+
+        String numThread = serverConfig.getNumThread();
+        if (numThread == null || numThread.trim().isEmpty()) {
+            throw new IllegalArgumentException("Timeout input data must be not empty");
+        }
+        try {
+            int numThreadInt = Integer.parseInt(numThread);
+            if (numThreadInt < 1 || numThreadInt > 1000)
+                throw new IllegalArgumentException("Number of thread must be >= 1 and <= 1000");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Number of thread must be >= 1 and <= 1000");
         }
     }
 }

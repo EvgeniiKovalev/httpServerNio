@@ -41,10 +41,6 @@ public class ServerConfig {
         return properties.getProperty("server.host", "0.0.0.0");
     }
 
-    public String getMaxConnections() {
-        return properties.getProperty("server.max-connections", "1000");
-    }
-
     public String getMaxHttpRequestSize() {
         return properties.getProperty("server.max-http-request-size", "100");
     }
@@ -57,4 +53,11 @@ public class ServerConfig {
         return properties.getProperty("server.buffer-size", "8192");
     }
 
+    public String getTimeoutInputData() {
+        return properties.getProperty("server.timeout_input_data", "10000");
+    }
+
+    public String getNumThread() {
+        return properties.getProperty("server.num_thread", "1");
+    }
 }

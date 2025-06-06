@@ -67,7 +67,7 @@ public class RequestRouter {
 
         if ((requestProcessor == null || requestProcessor == getErrorProcessor()) && paths.contains(context.getUri())) {
             ErrorDto errorDto = ErrorFactory.createErrorDto(HttpErrorType.METHOD_NOT_ALLOWED,
-                    "METHOD NOT ALLOWED. Please use a different HTTP method for this paths");
+                    "METHOD NOT ALLOWED");
             context.setErrorParsingResult(errorDto);
             requestProcessor = getErrorProcessor();
 
@@ -82,7 +82,7 @@ public class RequestRouter {
         try {
             requestProcessor.execute(context, clientChannel, inputByteBuffer);
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            logger.error("Error in requestProcessor.execute", e);
             RequestProcessor errorProcessor = getErrorProcessor();
             ErrorDto errorDto;
             if (e instanceof AppException appException) {
