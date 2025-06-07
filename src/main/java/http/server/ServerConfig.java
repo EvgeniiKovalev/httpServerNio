@@ -60,4 +60,9 @@ public class ServerConfig {
     public String getNumThread() {
         return properties.getProperty("server.num_thread", "1");
     }
+
+    public String getUseVirtualThread() {
+        return properties.getProperty("server.use_virtual_thread", "false");
+    }
+
 }

@@ -90,5 +90,13 @@ public class ServerValidator {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Number of thread must be >= 1 and <= 1000");
         }
+
+        String useVirtualThread = serverConfig.getUseVirtualThread();
+        if (useVirtualThread == null || useVirtualThread.trim().isEmpty()) {
+            throw new IllegalArgumentException("Use virtual threads must be not empty");
+        }
+        if (!useVirtualThread.equals("false") && !useVirtualThread.equals("true")) {
+            throw new IllegalArgumentException("Use virtual threads must be true or false");
+        }
     }
 }
