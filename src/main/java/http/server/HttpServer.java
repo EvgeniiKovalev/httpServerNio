@@ -16,8 +16,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.*;
 
 public class HttpServer implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(HttpServer.class);
@@ -32,7 +31,9 @@ public class HttpServer implements AutoCloseable {
     private final int MAX_HTTP_ANSWER_SIZE;
     private final int TIMEOUT_INPUT_DATA;
     private final int NUM_THREAD;
+    private final boolean USE_VIRTUAL_THREAD;
     private final Map<Integer, Selector> workerSelectors = new ConcurrentHashMap<>();
+    private ExecutorService pool;
 
     private ServerSocketChannel serverChannel;
     private volatile boolean isRunning;
@@ -52,6 +53,7 @@ public class HttpServer implements AutoCloseable {
         MAX_HTTP_ANSWER_SIZE = Integer.parseInt(serverConfig.getMaxHttpAnswerSize());
         TIMEOUT_INPUT_DATA = Integer.parseInt(serverConfig.getTimeoutInputData());
         NUM_THREAD = Integer.parseInt(serverConfig.getNumThread());
+        USE_VIRTUAL_THREAD = Boolean.parseBoolean(serverConfig.getUseVirtualThread());
 
         Repository repository = new Repository(DATABASE_URL, USER_DATABASE, PASSWORD_DATABASE);
         requestRouter = new RequestRouter(repository);
@@ -64,6 +66,7 @@ public class HttpServer implements AutoCloseable {
         serverChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
         serverChannel.bind(new InetSocketAddress(HOST, PORT));
         serverChannel.configureBlocking(false);
+        if (!USE_VIRTUAL_THREAD) pool = Executors.newFixedThreadPool(NUM_THREAD);
     }
 
     private void addShutdownHook() {
@@ -88,14 +91,24 @@ public class HttpServer implements AutoCloseable {
             serverChannel.register(selector, SelectionKey.OP_ACCEPT);
             final Selector finalSelector = selector;
             final Integer finalWorkerId = workerId;
-            Thread.startVirtualThread(() -> handlerThread(finalSelector, finalWorkerId, latch));
+            if (USE_VIRTUAL_THREAD) {
+                Thread.startVirtualThread(() -> handlerThread(finalSelector, finalWorkerId, latch));
+            } else {
+                pool.submit(() -> handlerThread(finalSelector, finalWorkerId, latch));
+            }
         }
-        logger.info("Server started on {}:{} (started number threads: {})", HOST, PORT, workerSelectors.size());
+        String typeThreads = USE_VIRTUAL_THREAD ? "virtual" : "physical";
+        logger.info("Server started on {}:{} ({} thread count started: {})", HOST, PORT, typeThreads, workerSelectors.size());
         try {
             latch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Server interrupted", e);
+        }
+        finally {
+            if (!USE_VIRTUAL_THREAD && !pool.isShutdown()) {
+                pool.shutdown();
+            }
         }
     }
 
@@ -348,6 +361,21 @@ public class HttpServer implements AutoCloseable {
         }
     }
 
+    private void shutdownAndAwaitTermination(ExecutorService pool) {
+        pool.shutdown();
+        try {
+            if (!pool.awaitTermination(3, TimeUnit.SECONDS)) {
+                pool.shutdownNow();
+                if (!pool.awaitTermination(3, TimeUnit.SECONDS)) {
+                    logger.error("Pool did not terminate");
+                }
+            }
+        } catch (InterruptedException ie) {
+            pool.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
     @Override
     public synchronized void close() throws IOException {
         if (!isRunning) return;
@@ -355,6 +383,9 @@ public class HttpServer implements AutoCloseable {
         System.out.println("Server stopping...");
         isRunning = false;
 
+        if (!USE_VIRTUAL_THREAD && !pool.isShutdown()) {
+            shutdownAndAwaitTermination(pool);
+        }
         workerSelectors.values().forEach(selector -> { if (selector != null) selector.wakeup(); });
 
         long stopTime = System.currentTimeMillis() + 5000;
