@@ -98,5 +98,17 @@ public class ServerValidator {
         if (!useVirtualThread.equals("false") && !useVirtualThread.equals("true")) {
             throw new IllegalArgumentException("Use virtual threads must be true or false");
         }
+
+        String maxPoolSize = serverConfig.getMaxPoolSize();
+        if (maxPoolSize == null || maxPoolSize.trim().isEmpty()) {
+            throw new IllegalArgumentException("maxPoolSize must be not empty");
+        }
+        try {
+            int intMaxPoolSize = Integer.parseInt(maxPoolSize);
+            if (intMaxPoolSize < 1 || intMaxPoolSize > 50)
+                throw new IllegalArgumentException("Maximum pool size must be >= 1 and <= 50");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Maximum pool size must be >= 1 and <= 50");
+        }
     }
 }
