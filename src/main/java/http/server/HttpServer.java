@@ -1,5 +1,7 @@
 package http.server;
 
+import com.zaxxer.hikari.HikariDataSource;
+import http.server.application.DatabaseSource;
 import http.server.application.Repository;
 import http.server.error.ErrorDto;
 import http.server.error.ErrorFactory;
@@ -21,9 +23,9 @@ import java.util.concurrent.*;
 public class HttpServer implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(HttpServer.class);
     private static RequestRouter requestRouter;
-    private final String DATABASE_URL;
-    private final String USER_DATABASE;
-    private final String PASSWORD_DATABASE;
+    private static String DATABASE_URL;
+    private static String USER_DATABASE;
+    private static String PASSWORD_DATABASE;
     private final String HOST;
     private final int PORT;
     private final int BUFFER_SIZE;
@@ -32,9 +34,11 @@ public class HttpServer implements AutoCloseable {
     private final int TIMEOUT_INPUT_DATA;
     private final int NUM_THREAD;
     private final boolean USE_VIRTUAL_THREAD;
+    private final int MAX_POOL_SIZE;
     private final Map<Integer, Selector> workerSelectors = new ConcurrentHashMap<>();
     private ExecutorService pool;
-
+    private final ServerConfig serverConfig;
+    private HikariDataSource hikariDataSource;
     private ServerSocketChannel serverChannel;
     private volatile boolean isRunning;
 
@@ -42,6 +46,7 @@ public class HttpServer implements AutoCloseable {
         if (serverConfig == null) {
             throw new IllegalArgumentException("serverConfig must not be null");
         }
+        this.serverConfig = serverConfig;
         ServerValidator.validate(serverConfig);
         DATABASE_URL = serverConfig.getDatabaseUrl();
         USER_DATABASE = serverConfig.getUserDatabase();
@@ -54,9 +59,12 @@ public class HttpServer implements AutoCloseable {
         TIMEOUT_INPUT_DATA = Integer.parseInt(serverConfig.getTimeoutInputData());
         NUM_THREAD = Integer.parseInt(serverConfig.getNumThread());
         USE_VIRTUAL_THREAD = Boolean.parseBoolean(serverConfig.getUseVirtualThread());
+        MAX_POOL_SIZE = Integer.parseInt(serverConfig.getMaxPoolSize());
 
-        Repository repository = new Repository(DATABASE_URL, USER_DATABASE, PASSWORD_DATABASE);
-        requestRouter = new RequestRouter(repository);
+        hikariDataSource = DatabaseSource.getDataSource(
+                DATABASE_URL, USER_DATABASE, PASSWORD_DATABASE, MAX_POOL_SIZE
+        );
+        requestRouter = new RequestRouter(new Repository(hikariDataSource));
     }
 
     private void initialize() throws IOException {
@@ -104,8 +112,7 @@ public class HttpServer implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Server interrupted", e);
-        }
-        finally {
+        } finally {
             if (!USE_VIRTUAL_THREAD && !pool.isShutdown()) {
                 pool.shutdown();
             }
@@ -151,7 +158,7 @@ public class HttpServer implements AutoCloseable {
     }
 
     private void accept(SelectionKey key) {
-        if (workerSelectors.size() > NUM_THREAD) {
+        if (workerSelectors.size() > NUM_THREAD + (USE_VIRTUAL_THREAD ? 1 : 0)) {
             logger.warn("Connection rejected (limit reached)");
             return;
         }
@@ -223,7 +230,7 @@ public class HttpServer implements AutoCloseable {
      * </ul>
      *
      * @param key The selection key containing channel and context
-     * @throws IOException for low-level I/O errors
+     * @throws IOException           for low-level I/O errors
      * @throws IllegalStateException if context structure is invalid
      */
     private void write(SelectionKey key) throws Exception {
@@ -379,6 +386,7 @@ public class HttpServer implements AutoCloseable {
     @Override
     public synchronized void close() throws IOException {
         if (!isRunning) return;
+
         logger.info("Server stopping...");
         System.out.println("Server stopping...");
         isRunning = false;
@@ -386,7 +394,9 @@ public class HttpServer implements AutoCloseable {
         if (!USE_VIRTUAL_THREAD && !pool.isShutdown()) {
             shutdownAndAwaitTermination(pool);
         }
-        workerSelectors.values().forEach(selector -> { if (selector != null) selector.wakeup(); });
+        workerSelectors.values().forEach(selector -> {
+            if (selector != null) selector.wakeup();
+        });
 
         long stopTime = System.currentTimeMillis() + 5000;
         while (!workerSelectors.isEmpty() && System.currentTimeMillis() < stopTime) {
@@ -403,7 +413,7 @@ public class HttpServer implements AutoCloseable {
 
         workerSelectors.forEach(this::safeCloseSelector);
         workerSelectors.clear();
-        logger.info("Server stopped");
+        DatabaseSource.closePool();
         System.out.println("Server stopped");
     }
 }

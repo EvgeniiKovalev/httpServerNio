@@ -2,6 +2,7 @@ package http.server.application;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.zaxxer.hikari.HikariDataSource;
 import http.server.error.AppException;
 import http.server.error.ErrorFactory;
 import org.apache.logging.log4j.LogManager;
@@ -12,41 +13,26 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Repository implements AutoCloseable {
+public class Repository {
     private static final Logger logger = LogManager.getLogger(Repository.class);
     private static final Gson GSON_INSTANCE = new GsonBuilder()
             .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
             .excludeFieldsWithoutExposeAnnotation()
             .create();
-    private final String databaseUrl;
-    private final String userDatabase;
-    private final String passwordDatabase;
-    private final Connection connection;
+    private final HikariDataSource dataSource;
 
 
-    public Repository(String databaseUrl, String userDatabase, String passwordDatabase) {
-        this.databaseUrl = databaseUrl;
-        this.userDatabase = userDatabase;
-        this.passwordDatabase = passwordDatabase;
-
-        try {
-            connection = getConnection();
-        } catch (SQLException e) {
-            logger.error("Не удалось подключиться к Postgres");
-            throw new RuntimeException(e);
-        }
+    public Repository(HikariDataSource dataSource) {
+        this.dataSource =  dataSource;
     }
 
     public static Gson getGson() {
         return GSON_INSTANCE;
     }
 
-    private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(databaseUrl, userDatabase, passwordDatabase);
-    }
-
     public boolean checkExistVisitById(int id) throws SQLException {
-        try (PreparedStatement ps = connection.prepareStatement(Constants.CHECK_EXIST_VISIT_BY_ID_QUERY)) {
+        try (   Connection connection = dataSource.getConnection();
+                PreparedStatement ps = connection.prepareStatement(Constants.CHECK_EXIST_VISIT_BY_ID_QUERY)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
@@ -55,7 +41,8 @@ public class Repository implements AutoCloseable {
     }
 
     public Visit getVisitById(int id) throws SQLException {
-        try (PreparedStatement ps = connection.prepareStatement(Constants.SELECT_VISIT_BY_ID_QUERY)) {
+        try (   Connection connection = dataSource.getConnection();
+                PreparedStatement ps = connection.prepareStatement(Constants.SELECT_VISIT_BY_ID_QUERY)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 return !rs.next() ? null : new Visit(
@@ -73,7 +60,7 @@ public class Repository implements AutoCloseable {
         if (id <= 0) {
             throw ErrorFactory.internalServerError("id for delete must be > 0");
         }
-        try (Connection connection = getConnection();
+        try (Connection connection = dataSource.getConnection();
              PreparedStatement ps = connection.prepareStatement(Constants.DELETE_VISIT_BY_ID_QUERY)) {
             connection.setAutoCommit(false);
             ps.setInt(1, id);
@@ -92,7 +79,8 @@ public class Repository implements AutoCloseable {
     }
 
     public List<Visit> getAllVisits() throws SQLException{
-        try (PreparedStatement ps = connection.prepareStatement(Constants.SELECT_All_VISIT_QUERY)) {
+        try (   Connection connection = dataSource.getConnection();
+                PreparedStatement ps = connection.prepareStatement(Constants.SELECT_All_VISIT_QUERY)) {
             List<Visit> result = new ArrayList<>();
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -120,7 +108,7 @@ public class Repository implements AutoCloseable {
         if (visit == null) {
             throw ErrorFactory.internalServerError("Null Visit passed to insertVisit");
         }
-        try (Connection connection = getConnection();
+        try (Connection connection = dataSource.getConnection();
              PreparedStatement ps = connection.prepareStatement(
                      Constants.INSERT_NEW_VISIT_QUERY,
                      Statement.RETURN_GENERATED_KEYS)) {
@@ -150,7 +138,8 @@ public class Repository implements AutoCloseable {
             throw ErrorFactory.internalServerError("Null startPeriod or null endPeriod passed to checkOverlapsPeriod");
         }
 
-        try (PreparedStatement ps = connection.prepareStatement(Constants.SELECT_VISIT_BY_OVERLAPS_PERIOD_QUERY)) {
+        try (   Connection connection = dataSource.getConnection();
+                PreparedStatement ps = connection.prepareStatement(Constants.SELECT_VISIT_BY_OVERLAPS_PERIOD_QUERY)) {
             ps.setInt(1, excludeId);
             ps.setTimestamp(2, Timestamp.valueOf(endPeriod));
             ps.setTimestamp(3, Timestamp.valueOf(startPeriod));
@@ -177,7 +166,7 @@ public class Repository implements AutoCloseable {
         }
 
 
-        try (Connection connection = getConnection();
+        try (Connection connection = dataSource.getConnection();
              PreparedStatement ps = connection.prepareStatement(
                      Constants.UPDATE_EXIST_VISIT_QUERY,
                      Statement.RETURN_GENERATED_KEYS)) {
@@ -200,14 +189,5 @@ public class Repository implements AutoCloseable {
             }
         }
         return false;
-    }
-
-
-    @Override
-    public void close() throws Exception {
-        if (connection != null) {
-            connection.close();
-            logger.debug("Соединение с Postgres закрыто");
-        }
     }
 }

@@ -65,4 +65,7 @@ public class ServerConfig {
         return properties.getProperty("server.use_virtual_thread", "false");
     }
 
+    public String getMaxPoolSize() {
+        return properties.getProperty("server.max-pool-size", "10");
+    }
 }

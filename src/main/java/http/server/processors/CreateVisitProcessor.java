@@ -5,8 +5,6 @@ import http.server.Context;
 import http.server.RequestAnswer;
 import http.server.application.Repository;
 import http.server.application.Visit;
-import http.server.error.AppException;
-import http.server.error.ErrorFactory;
 import http.server.parser.RequestDto;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,7 +13,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 public class CreateVisitProcessor implements RequestProcessor {
