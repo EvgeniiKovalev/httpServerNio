@@ -6,10 +6,16 @@ import http.server.application.Repository;
 import http.server.error.ErrorDto;
 import http.server.error.ErrorFactory;
 import http.server.error.HttpErrorType;
+import http.server.metrics.JvmMetrics;
+import http.server.metrics.RouterMetrics;
+import http.server.metrics.ServerMetrics;
 import http.server.parser.ParsingResult;
 import http.server.parser.RequestParser;
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.jmx.Server;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -20,8 +26,10 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.*;
 
+
 public class HttpServer implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(HttpServer.class);
+
     private static RequestRouter requestRouter;
     private static String DATABASE_URL;
     private static String USER_DATABASE;
@@ -38,16 +46,22 @@ public class HttpServer implements AutoCloseable {
     private final Map<Integer, Selector> workerSelectors = new ConcurrentHashMap<>();
     private ExecutorService pool;
     private final ServerConfig serverConfig;
+    private final PrometheusMeterRegistry registry;
     private HikariDataSource hikariDataSource;
     private ServerSocketChannel serverChannel;
     private volatile boolean isRunning;
+    private final ServerMetrics serverMetrics;
+    private final RouterMetrics routerMetrics;
+    private final JvmMetrics jvmMetrics;
 
-    public HttpServer(ServerConfig serverConfig) {
+    public HttpServer(ServerConfig serverConfig, PrometheusMeterRegistry registry, String serverId) {
         if (serverConfig == null) {
             throw new IllegalArgumentException("serverConfig must not be null");
         }
         this.serverConfig = serverConfig;
         ServerValidator.validate(serverConfig);
+        this.registry = registry;
+
         DATABASE_URL = serverConfig.getDatabaseUrl();
         USER_DATABASE = serverConfig.getUserDatabase();
         PASSWORD_DATABASE = serverConfig.getPasswordDatabase();
@@ -62,8 +76,10 @@ public class HttpServer implements AutoCloseable {
         MAX_POOL_SIZE = Integer.parseInt(serverConfig.getMaxPoolSize());
 
         hikariDataSource = DatabaseSource.getDataSource(
-                DATABASE_URL, USER_DATABASE, PASSWORD_DATABASE, MAX_POOL_SIZE
-        );
+                DATABASE_URL, USER_DATABASE, PASSWORD_DATABASE, MAX_POOL_SIZE);
+        this.serverMetrics = new ServerMetrics(registry, this);
+        this.jvmMetrics = new JvmMetrics(registry);
+        this
         requestRouter = new RequestRouter(new Repository(hikariDataSource));
     }
 
@@ -75,6 +91,14 @@ public class HttpServer implements AutoCloseable {
         serverChannel.bind(new InetSocketAddress(HOST, PORT));
         serverChannel.configureBlocking(false);
         if (!USE_VIRTUAL_THREAD) pool = Executors.newFixedThreadPool(NUM_THREAD);
+    }
+
+    public boolean useVirtualThreads() {
+        return USE_VIRTUAL_THREAD;
+    }
+
+    public int activeCountThreads() {
+        return workerSelectors.size();
     }
 
     private void addShutdownHook() {
@@ -106,12 +130,12 @@ public class HttpServer implements AutoCloseable {
             }
         }
         String typeThreads = USE_VIRTUAL_THREAD ? "virtual" : "physical";
-        logger.info("Server started on {}:{} ({} thread count started: {})", HOST, PORT, typeThreads, workerSelectors.size());
+        logger.info("ServerMetrics started on {}:{} ({} thread count started: {})", HOST, PORT, typeThreads, workerSelectors.size());
         try {
             latch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Server interrupted", e);
+            throw new RuntimeException("ServerMetrics interrupted", e);
         } finally {
             if (!USE_VIRTUAL_THREAD && !pool.isShutdown()) {
                 pool.shutdown();
@@ -123,6 +147,7 @@ public class HttpServer implements AutoCloseable {
         if (workerId == null || selector == null) return;
 
         try {
+
             workerSelectors.put(workerId, selector);
             while (isRunning) {
                 if (selector.select(TIMEOUT_INPUT_DATA) == 0) continue;
@@ -387,8 +412,8 @@ public class HttpServer implements AutoCloseable {
     public synchronized void close() throws IOException {
         if (!isRunning) return;
 
-        logger.info("Server stopping...");
-        System.out.println("Server stopping...");
+        logger.info("ServerMetrics stopping...");
+        System.out.println("ServerMetrics stopping...");
         isRunning = false;
 
         if (!USE_VIRTUAL_THREAD && !pool.isShutdown()) {
@@ -414,6 +439,6 @@ public class HttpServer implements AutoCloseable {
         workerSelectors.forEach(this::safeCloseSelector);
         workerSelectors.clear();
         DatabaseSource.closePool();
-        System.out.println("Server stopped");
+        System.out.println("ServerMetrics stopped");
     }
 }
